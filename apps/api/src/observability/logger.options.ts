@@ -1,3 +1,4 @@
+import { isSpanContextValid, trace } from '@opentelemetry/api';
 import type { Params } from 'nestjs-pino';
 import { stdTimeFunctions } from 'pino';
 
@@ -28,6 +29,13 @@ export function loggerOptions(config: Config): Params {
         res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
       },
       autoLogging: { ignore: (req) => isOperationalPath(req.url) },
+      // Links log lines to traces when tracing is enabled.
+      mixin: () => {
+        const spanContext = trace.getActiveSpan()?.spanContext();
+        return spanContext && isSpanContextValid(spanContext)
+          ? { traceId: spanContext.traceId, spanId: spanContext.spanId }
+          : {};
+      },
     },
   };
 }

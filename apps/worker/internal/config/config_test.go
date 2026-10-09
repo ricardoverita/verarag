@@ -36,11 +36,12 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadReadsEnvironment(t *testing.T) {
 	cfg, err := Load(env(map[string]string{
-		"NATS_URL":                "nats://nats:4222",
-		"WORKER_HTTP_ADDR":        "127.0.0.1:9000",
-		"LOG_LEVEL":               "debug",
-		"WORKER_INSTANCE_ID":      "worker-1",
-		"WORKER_SHUTDOWN_TIMEOUT": "5s",
+		"NATS_URL":                    "nats://nats:4222",
+		"WORKER_HTTP_ADDR":            "127.0.0.1:9000",
+		"LOG_LEVEL":                   "debug",
+		"WORKER_INSTANCE_ID":          "worker-1",
+		"WORKER_SHUTDOWN_TIMEOUT":     "5s",
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://jaeger:4318",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -52,6 +53,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 		LogLevel:        slog.LevelDebug,
 		InstanceID:      "worker-1",
 		ShutdownTimeout: 5 * time.Second,
+		OTLPEndpoint:    "http://jaeger:4318",
 	}
 	if cfg != want {
 		t.Errorf("Load() = %+v, want %+v", cfg, want)
@@ -60,17 +62,18 @@ func TestLoadReadsEnvironment(t *testing.T) {
 
 func TestLoadReportsEveryProblem(t *testing.T) {
 	_, err := Load(env(map[string]string{
-		"NATS_URL":                "http://nats:4222",
-		"WORKER_HTTP_ADDR":        "8081",
-		"LOG_LEVEL":               "verbose",
-		"WORKER_INSTANCE_ID":      "worker 1",
-		"WORKER_SHUTDOWN_TIMEOUT": "-1s",
+		"NATS_URL":                    "http://nats:4222",
+		"WORKER_HTTP_ADDR":            "8081",
+		"LOG_LEVEL":                   "verbose",
+		"WORKER_INSTANCE_ID":          "worker 1",
+		"WORKER_SHUTDOWN_TIMEOUT":     "-1s",
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "jaeger:4318",
 	}))
 	if err == nil {
 		t.Fatal("expected an error")
 	}
 
-	for _, variable := range []string{"NATS_URL", "WORKER_HTTP_ADDR", "LOG_LEVEL", "WORKER_INSTANCE_ID", "WORKER_SHUTDOWN_TIMEOUT"} {
+	for _, variable := range []string{"NATS_URL", "WORKER_HTTP_ADDR", "LOG_LEVEL", "WORKER_INSTANCE_ID", "WORKER_SHUTDOWN_TIMEOUT", "OTEL_EXPORTER_OTLP_ENDPOINT"} {
 		if !strings.Contains(err.Error(), variable) {
 			t.Errorf("error does not mention %s: %v", variable, err)
 		}

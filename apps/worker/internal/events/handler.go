@@ -9,9 +9,15 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ricardoverita/verarag/apps/worker/internal/telemetry"
 	"github.com/ricardoverita/verarag/packages/contracts"
 )
 
@@ -20,6 +26,7 @@ import (
 type Message interface {
 	Subject() string
 	Data() []byte
+	Headers() nats.Header
 	Metadata() (*jetstream.MsgMetadata, error)
 	Ack() error
 	NakWithDelay(delay time.Duration) error
@@ -42,6 +49,7 @@ const retryDelay = 5 * time.Second
 type Handler struct {
 	validator *contracts.Validator
 	logger    *slog.Logger
+	tracer    trace.Tracer
 	processed *prometheus.CounterVec
 	duration  *prometheus.HistogramVec
 }
@@ -51,6 +59,7 @@ func NewHandler(validator *contracts.Validator, logger *slog.Logger, registerer 
 	h := &Handler{
 		validator: validator,
 		logger:    logger,
+		tracer:    otel.Tracer("github.com/ricardoverita/verarag/apps/worker"),
 		processed: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "verarag_worker_events_processed_total",
 			Help: "Events received by the worker, by event type and outcome (processed, rejected or failed).",
@@ -73,7 +82,24 @@ func NewHandler(validator *contracts.Validator, logger *slog.Logger, registerer 
 // handled, term when retrying cannot help, nak when a retry might.
 func (h *Handler) Handle(ctx context.Context, msg Message) {
 	start := time.Now()
+
+	// Continue the trace started by the API, if the message carries one.
+	ctx = otel.GetTextMapPropagator().Extract(ctx, telemetry.HeaderCarrier(msg.Headers()))
+	ctx, span := h.tracer.Start(ctx, "process "+msg.Subject(),
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "nats"),
+			attribute.String("messaging.destination.name", msg.Subject()),
+		),
+	)
+	defer span.End()
+
 	eventType, outcome := h.process(ctx, msg)
+	span.SetAttributes(attribute.String("verarag.outcome", outcome))
+	if outcome != outcomeProcessed {
+		span.SetStatus(codes.Error, outcome)
+	}
+
 	h.processed.WithLabelValues(eventType, outcome).Inc()
 	h.duration.WithLabelValues(eventType).Observe(time.Since(start).Seconds())
 }
@@ -81,6 +107,9 @@ func (h *Handler) Handle(ctx context.Context, msg Message) {
 func (h *Handler) process(ctx context.Context, msg Message) (eventType, outcome string) {
 	subject := msg.Subject()
 	logger := h.logger.With("subject", subject)
+	if spanContext := trace.SpanContextFromContext(ctx); spanContext.IsValid() {
+		logger = logger.With("trace_id", spanContext.TraceID().String(), "span_id", spanContext.SpanID().String())
+	}
 	if metadata, err := msg.Metadata(); err == nil {
 		logger = logger.With("stream_sequence", metadata.Sequence.Stream, "delivery_attempt", metadata.NumDelivered)
 	}

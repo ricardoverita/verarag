@@ -23,6 +23,9 @@ const envSchema = z.object({
   NATS_URL: z.string().min(1).default('nats://localhost:4222'),
 
   DEV_ENDPOINTS_ENABLED: z.stringbool().default(false),
+
+  /** Standard OpenTelemetry variable. Tracing is off when it is not set. */
+  OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
 });
 
 export type LogLevel = z.infer<typeof envSchema>['LOG_LEVEL'];
@@ -42,6 +45,7 @@ export interface Config {
   nats: { servers: string[] };
   /** Enables /api/v1/dev/*. Meant for local development and integration tests only. */
   devEndpointsEnabled: boolean;
+  tracing: { endpoint?: string };
 }
 
 /** Injection token for the validated configuration. */
@@ -83,5 +87,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     nats: { servers: vars.NATS_URL.split(',').map((server) => server.trim()) },
     devEndpointsEnabled: vars.DEV_ENDPOINTS_ENABLED,
+    tracing: { endpoint: vars.OTEL_EXPORTER_OTLP_ENDPOINT },
   };
 }

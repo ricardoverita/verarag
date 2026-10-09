@@ -16,6 +16,7 @@ describe('loadConfig', () => {
     expect(config.database.poolMax).toBe(10);
     expect(config.nats.servers).toEqual(['nats://localhost:4222']);
     expect(config.devEndpointsEnabled).toBe(false);
+    expect(config.tracing.endpoint).toBeUndefined();
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',

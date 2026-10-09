@@ -27,6 +27,7 @@ import (
 	"github.com/ricardoverita/verarag/apps/worker/internal/events"
 	"github.com/ricardoverita/verarag/apps/worker/internal/heartbeat"
 	"github.com/ricardoverita/verarag/apps/worker/internal/server"
+	"github.com/ricardoverita/verarag/apps/worker/internal/telemetry"
 	"github.com/ricardoverita/verarag/packages/contracts"
 )
 
@@ -58,6 +59,11 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	shutdownTracing, err := telemetry.Setup(ctx, cfg.OTLPEndpoint, version, logger)
+	if err != nil {
+		return err
+	}
 
 	validator, err := contracts.NewValidator()
 	if err != nil {
@@ -158,6 +164,10 @@ func run() error {
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Warn("http server shutdown", "error", err)
+	}
+
+	if err := shutdownTracing(shutdownCtx); err != nil {
+		logger.Warn("could not flush traces", "error", err)
 	}
 
 	logger.Info("worker stopped")

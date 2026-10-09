@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -21,12 +22,14 @@ import (
 type fakeMessage struct {
 	subject string
 	data    []byte
+	headers nats.Header
 	settled string
 	reason  string
 }
 
-func (m *fakeMessage) Subject() string { return m.subject }
-func (m *fakeMessage) Data() []byte    { return m.data }
+func (m *fakeMessage) Subject() string      { return m.subject }
+func (m *fakeMessage) Data() []byte         { return m.data }
+func (m *fakeMessage) Headers() nats.Header { return m.headers }
 func (m *fakeMessage) Metadata() (*jetstream.MsgMetadata, error) {
 	return &jetstream.MsgMetadata{NumDelivered: 1}, nil
 }

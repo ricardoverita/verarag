@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -19,6 +20,8 @@ type Config struct {
 	LogLevel        slog.Level
 	InstanceID      string
 	ShutdownTimeout time.Duration
+	// OTLPEndpoint enables tracing. It is the standard OTEL_EXPORTER_OTLP_ENDPOINT.
+	OTLPEndpoint string
 }
 
 // Instance ids are used as keys in a NATS key-value bucket, which only
@@ -35,6 +38,7 @@ func Load(getenv func(string) string) (Config, error) {
 		HTTPAddr:        valueOr(getenv("WORKER_HTTP_ADDR"), ":8081"),
 		InstanceID:      getenv("WORKER_INSTANCE_ID"),
 		ShutdownTimeout: 15 * time.Second,
+		OTLPEndpoint:    getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
 	var problems []error
 
@@ -66,6 +70,12 @@ func Load(getenv func(string) string) (Config, error) {
 
 	if !strings.HasPrefix(cfg.NATSURL, "nats://") && !strings.HasPrefix(cfg.NATSURL, "tls://") {
 		problems = append(problems, errors.New("NATS_URL: must start with nats:// or tls://"))
+	}
+
+	if cfg.OTLPEndpoint != "" {
+		if endpoint, err := url.Parse(cfg.OTLPEndpoint); err != nil || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.Host == "" {
+			problems = append(problems, errors.New("OTEL_EXPORTER_OTLP_ENDPOINT: must be an http(s) URL"))
+		}
 	}
 
 	if len(problems) > 0 {

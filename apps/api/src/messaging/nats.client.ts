@@ -14,7 +14,12 @@ import {
   type StreamConfig,
 } from '@nats-io/jetstream';
 import { Kvm } from '@nats-io/kv';
-import { connect, nanos, type NatsConnection } from '@nats-io/transport-node';
+import {
+  connect,
+  headers as natsHeaders,
+  nanos,
+  type NatsConnection,
+} from '@nats-io/transport-node';
 import { Inject, Injectable, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { Streams } from '@verarag/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -78,10 +83,23 @@ export class NatsClient implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  /** Publishes to JetStream. `msgId` lets the server drop duplicates. */
-  publish(subject: string, payload: string, msgId: string): Promise<PubAck> {
+  /**
+   * Publishes to JetStream. `msgId` lets the server drop duplicates and
+   * `headers` carries metadata such as the trace context.
+   */
+  publish(
+    subject: string,
+    payload: string,
+    msgId: string,
+    headers: Record<string, string> = {},
+  ): Promise<PubAck> {
+    const messageHeaders = natsHeaders();
+    for (const [key, value] of Object.entries(headers)) {
+      messageHeaders.set(key, value);
+    }
     return this.jetStreamClient().publish(subject, payload, {
       msgID: msgId,
+      headers: messageHeaders,
       timeout: PUBLISH_TIMEOUT_MS,
     });
   }

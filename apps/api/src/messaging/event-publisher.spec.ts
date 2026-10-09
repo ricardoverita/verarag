@@ -50,7 +50,12 @@ describe('EventPublisher', () => {
 
     const published = await publisher.publish(event);
 
-    expect(nats.publish).toHaveBeenCalledWith('system.test', JSON.stringify(event), event.id);
+    expect(nats.publish).toHaveBeenCalledWith(
+      'system.test',
+      JSON.stringify(event),
+      event.id,
+      expect.any(Object),
+    );
     expect(published).toEqual({
       id: event.id,
       type: 'system.test',

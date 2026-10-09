@@ -20,7 +20,7 @@ export function httpMetricsMiddleware(metrics: MetricsService) {
  * Uses the route pattern instead of the raw URL so ids in paths do not create
  * a new time series per request.
  */
-function routeLabel(req: Request): string {
+export function routeLabel(req: Request): string {
   const route: unknown = req.route;
   if (typeof route === 'object' && route !== null && 'path' in route) {
     return `${req.baseUrl}${String(route.path)}`;

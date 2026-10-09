@@ -16,6 +16,7 @@ export const testConfig: Config = {
   storage: { region: 'us-east-1', bucket: 'verarag-documents', forcePathStyle: true },
   nats: { servers: ['nats://localhost:4222'] },
   devEndpointsEnabled: true,
+  tracing: {},
 };
 
 export const workerHeartbeat = {

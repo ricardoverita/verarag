@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # DNS discovery finds every replica when a service is scaled
+  # (`docker compose up --scale worker=3`).
+  - job_name: api
+    dns_sd_configs:
+      - names: [api]
+        type: A
+        port: 3001
+
+  - job_name: worker
+    dns_sd_configs:
+      - names: [worker]
+        type: A
+        port: 8081
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

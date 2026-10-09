@@ -5,6 +5,7 @@ import { CONFIG, type Config } from '../config/config.js';
 import { loggerOptions } from './logger.options.js';
 import { MetricsController } from './metrics.controller.js';
 import { MetricsService } from './metrics.service.js';
+import { TracingService } from './tracing.service.js';
 
 @Global()
 @Module({
@@ -15,7 +16,7 @@ import { MetricsService } from './metrics.service.js';
     }),
   ],
   controllers: [MetricsController],
-  providers: [MetricsService],
+  providers: [MetricsService, TracingService],
   exports: [MetricsService],
 })
 export class ObservabilityModule {}

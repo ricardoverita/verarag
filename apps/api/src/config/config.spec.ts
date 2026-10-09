@@ -14,6 +14,8 @@ describe('loadConfig', () => {
     expect(config.http).toEqual({ host: '0.0.0.0', port: 3001 });
     expect(config.logLevel).toBe('info');
     expect(config.database.poolMax).toBe(10);
+    expect(config.nats.servers).toEqual(['nats://localhost:4222']);
+    expect(config.devEndpointsEnabled).toBe(false);
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',
@@ -38,6 +40,21 @@ describe('loadConfig', () => {
       secretAccessKey: 'secret',
     });
     expect(config.storage.forcePathStyle).toBe(true);
+  });
+
+  it('accepts several NATS servers', () => {
+    const config = loadConfig({ ...baseEnv, NATS_URL: 'nats://nats-1:4222, nats://nats-2:4222' });
+
+    expect(config.nats.servers).toEqual(['nats://nats-1:4222', 'nats://nats-2:4222']);
+  });
+
+  it('only enables the development endpoints explicitly', () => {
+    expect(loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'true' }).devEndpointsEnabled).toBe(
+      true,
+    );
+    expect(() => loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'maybe' })).toThrow(
+      /DEV_ENDPOINTS_ENABLED/,
+    );
   });
 
   it('treats empty variables as unset', () => {

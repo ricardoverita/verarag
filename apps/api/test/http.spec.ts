@@ -3,7 +3,7 @@ import type { SystemStatus } from '@verarag/contracts';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createFakes, createTestApp, type Fakes } from './support/test-app.js';
+import { createFakes, createTestApp, type Fakes, testConfig } from './support/test-app.js';
 
 describe('HTTP API', () => {
   let fakes: Fakes;
@@ -27,12 +27,15 @@ describe('HTTP API', () => {
   });
 
   describe('GET /readyz', () => {
-    it('is ready when the database answers', async () => {
+    it('is ready when the database and NATS answer', async () => {
       const response = await request(app.getHttpServer()).get('/readyz').expect(200);
 
       expect(response.body).toMatchObject({
         status: 'ok',
-        components: [{ name: 'database', status: 'up' }],
+        components: [
+          { name: 'database', status: 'up' },
+          { name: 'messaging', status: 'up' },
+        ],
       });
     });
 
@@ -43,8 +46,14 @@ describe('HTTP API', () => {
 
       expect(response.body).toMatchObject({
         status: 'unavailable',
-        components: [{ name: 'database', status: 'down', error: 'unavailable' }],
+        components: [{ name: 'database', status: 'down', error: 'unavailable' }, { status: 'up' }],
       });
+    });
+
+    it('returns 503 when NATS is unreachable', async () => {
+      fakes.nats.ping.mockRejectedValue(new Error('disconnected'));
+
+      await request(app.getHttpServer()).get('/readyz').expect(503);
     });
   });
 
@@ -58,6 +67,8 @@ describe('HTTP API', () => {
         status: 'ok',
         components: [
           { name: 'database', status: 'up', details: { pgvector: '0.8.7' } },
+          { name: 'messaging', status: 'up', details: { server: '2.15.0' } },
+          { name: 'worker', status: 'up', details: { instances: 1, version: '0.1.0' } },
           { name: 'storage', status: 'up', details: { bucket: 'verarag-documents' } },
         ],
       });
@@ -65,16 +76,96 @@ describe('HTTP API', () => {
 
     it('reports a degraded system when a component is down', async () => {
       fakes.storage.checkBucket.mockRejectedValue(new Error('socket hang up'));
+      fakes.nats.readBucket.mockResolvedValue(new Map());
 
       const response = await request(app.getHttpServer()).get('/api/v1/system/status').expect(200);
       const status = response.body as SystemStatus;
 
       expect(status.status).toBe('degraded');
-      expect(status.components[1]).toMatchObject({
-        name: 'storage',
-        status: 'down',
-        error: 'unavailable',
+      expect(status.components).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'worker',
+            status: 'down',
+            error: 'no worker is sending heartbeats',
+          }),
+          expect.objectContaining({ name: 'storage', status: 'down', error: 'unavailable' }),
+        ]),
+      );
+    });
+  });
+
+  describe('POST /api/v1/dev/events', () => {
+    const publish = (body: object) =>
+      request(app.getHttpServer()).post('/api/v1/dev/events').send(body);
+
+    it('publishes a system.test event and returns where it was stored', async () => {
+      const response = await publish({ type: 'system.test', message: 'hello from VeraRAG' })
+        .set('x-request-id', 'smoke-1')
+        .expect(202);
+
+      expect(response.body).toMatchObject({
+        type: 'system.test',
+        stream: 'SYSTEM',
+        sequence: 1,
+        duplicate: false,
       });
+
+      const [subject, payload, msgId] = fakes.nats.publish.mock.calls[0] as [
+        string,
+        string,
+        string,
+      ];
+      const event = JSON.parse(payload) as Record<string, unknown>;
+      expect(subject).toBe('system.test');
+      expect(msgId).toBe(event.id);
+      expect(event).toMatchObject({
+        id: (response.body as { id: string }).id,
+        type: 'system.test',
+        version: 1,
+        source: 'api',
+        correlationId: 'smoke-1',
+        data: { message: 'hello from VeraRAG' },
+      });
+    });
+
+    it.each([
+      ['an unknown event type', { type: 'document.ingestion.requested', message: 'hi' }],
+      ['an empty message', { type: 'system.test', message: '   ' }],
+      ['a message over 500 characters', { type: 'system.test', message: 'x'.repeat(501) }],
+      ['no message', { type: 'system.test' }],
+    ])('rejects %s', async (_case, body) => {
+      await publish(body).expect(400);
+      expect(fakes.nats.publish).not.toHaveBeenCalled();
+    });
+
+    it('returns 503 when NATS does not accept the event', async () => {
+      fakes.nats.publish.mockRejectedValue(new Error('no responders available'));
+
+      await publish({ type: 'system.test', message: 'hello' }).expect(503);
+    });
+
+    it('limits how many events a client can publish per minute', async () => {
+      for (let i = 0; i < 10; i++) {
+        await publish({ type: 'system.test', message: `event ${i}` }).expect(202);
+      }
+
+      await publish({ type: 'system.test', message: 'one too many' }).expect(429);
+    });
+
+    it('does not exist when the development endpoints are disabled', async () => {
+      const prodApp = await createTestApp(createFakes(), {
+        ...testConfig,
+        devEndpointsEnabled: false,
+      });
+      try {
+        await request(prodApp.getHttpServer())
+          .post('/api/v1/dev/events')
+          .send({ type: 'system.test', message: 'hello' })
+          .expect(404);
+      } finally {
+        await prodApp.close();
+      }
     });
   });
 

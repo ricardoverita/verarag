@@ -23,17 +23,22 @@ describe('runCheck', () => {
   });
 
   it('returns the message of a CheckFailedError', async () => {
+    const log = logger();
     const status = await runCheck(
       'storage',
       () => Promise.reject(new CheckFailedError('bucket verarag-documents does not exist')),
       100,
-      logger(),
+      log,
     );
 
     expect(status).toMatchObject({
       status: 'down',
       error: 'bucket verarag-documents does not exist',
     });
+    expect(log.warn).toHaveBeenCalledWith(
+      { component: 'storage', reason: 'bucket verarag-documents does not exist' },
+      'storage check failed',
+    );
   });
 
   it('hides unexpected errors from the response but logs them', async () => {

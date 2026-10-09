@@ -3,6 +3,8 @@ import type { ComponentStatus, SystemStatus } from '@verarag/contracts';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { DatabaseHealth } from '../database/database.health.js';
+import { NatsClient } from '../messaging/nats.client.js';
+import { WorkerHeartbeats } from '../messaging/worker-heartbeats.js';
 import { ObjectStorage } from '../storage/object-storage.js';
 import { APP_VERSION } from '../version.js';
 import { runCheck } from './checks.js';
@@ -23,6 +25,8 @@ export class SystemStatusService {
 
   constructor(
     private readonly database: DatabaseHealth,
+    private readonly nats: NatsClient,
+    private readonly workers: WorkerHeartbeats,
     private readonly storage: ObjectStorage,
     @InjectPinoLogger(SystemStatusService.name) private readonly logger: PinoLogger,
   ) {}
@@ -34,6 +38,7 @@ export class SystemStatusService {
   async readiness(): Promise<Readiness> {
     const components = await Promise.all([
       runCheck('database', () => this.database.ping(), CHECK_TIMEOUT_MS, this.logger),
+      runCheck('messaging', () => this.nats.ping(), CHECK_TIMEOUT_MS, this.logger),
     ]);
     const ready = components.every((component) => component.status === 'up');
     return { status: ready ? 'ok' : 'unavailable', components };
@@ -51,6 +56,8 @@ export class SystemStatusService {
   private async collectStatus(): Promise<SystemStatus> {
     const components = await Promise.all([
       runCheck('database', () => this.database.check(), CHECK_TIMEOUT_MS, this.logger),
+      runCheck('messaging', () => this.nats.check(), CHECK_TIMEOUT_MS, this.logger),
+      runCheck('worker', () => this.workers.check(), CHECK_TIMEOUT_MS, this.logger),
       runCheck('storage', () => this.storage.checkBucket(), CHECK_TIMEOUT_MS, this.logger),
     ]);
     return {

@@ -1,8 +1,11 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import type { Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DevModule } from './dev/dev.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 
@@ -11,7 +14,17 @@ export class AppModule {
   static forRoot(config: Config): DynamicModule {
     return {
       module: AppModule,
-      imports: [ConfigModule.forRoot(config), ObservabilityModule, DatabaseModule, HealthModule],
+      imports: [
+        ConfigModule.forRoot(config),
+        ObservabilityModule,
+        // In-memory limits are enough for a single instance. They move to
+        // Redis when the API runs with several replicas.
+        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+        DatabaseModule,
+        HealthModule,
+        ...(config.devEndpointsEnabled ? [DevModule] : []),
+      ],
+      providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
     };
   }
 }

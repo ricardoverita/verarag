@@ -2,7 +2,7 @@
  * Response of `GET /api/v1/system/status`. It is only exchanged between the
  * TypeScript apps (API and web), so it does not have a JSON Schema yet.
  */
-export type ComponentName = 'database' | 'storage';
+export type ComponentName = 'database' | 'messaging' | 'worker' | 'storage';
 
 export interface ComponentStatus {
   name: ComponentName;

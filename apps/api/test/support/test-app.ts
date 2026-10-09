@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/app.setup.js';
 import type { Config } from '../../src/config/config.js';
+import { NatsClient } from '../../src/messaging/nats.client.js';
 import { ObjectStorage } from '../../src/storage/object-storage.js';
 
 export const testConfig: Config = {
@@ -13,6 +14,15 @@ export const testConfig: Config = {
   http: { host: '127.0.0.1', port: 0 },
   database: { url: 'postgres://verarag:verarag@localhost:5432/verarag', poolMax: 1 },
   storage: { region: 'us-east-1', bucket: 'verarag-documents', forcePathStyle: true },
+  nats: { servers: ['nats://localhost:4222'] },
+  devEndpointsEnabled: true,
+};
+
+export const workerHeartbeat = {
+  instanceId: 'worker-1',
+  version: '0.1.0',
+  startedAt: '2026-10-09T10:00:00Z',
+  sentAt: '2026-10-09T10:00:10Z',
 };
 
 /** In-memory stand-ins for the infrastructure, so HTTP tests run without Docker. */
@@ -28,6 +38,14 @@ export function createFakes() {
       checkBucket: vi.fn().mockResolvedValue({ bucket: testConfig.storage.bucket }),
       onApplicationShutdown: vi.fn(),
     },
+    nats: {
+      publish: vi.fn().mockResolvedValue({ stream: 'SYSTEM', seq: 1, duplicate: false }),
+      ping: vi.fn().mockResolvedValue({ rttMs: 1 }),
+      check: vi.fn().mockResolvedValue({ server: '2.15.0', streams: 1 }),
+      readBucket: vi
+        .fn()
+        .mockResolvedValue(new Map([['worker-1', JSON.stringify(workerHeartbeat)]])),
+    },
   };
 }
 
@@ -42,6 +60,8 @@ export async function createTestApp(
     .useValue(fakes.pool)
     .overrideProvider(ObjectStorage)
     .useValue(fakes.storage)
+    .overrideProvider(NatsClient)
+    .useValue(fakes.nats)
     .compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>();

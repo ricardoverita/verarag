@@ -1,4 +1,4 @@
-import { collectDefaultMetrics, Histogram, Registry } from '@prometheus-io/client';
+import { collectDefaultMetrics, Counter, Histogram, Registry } from '@prometheus-io/client';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -10,6 +10,13 @@ export class MetricsService {
     help: 'Duration of the HTTP requests handled by the API.',
     labelNames: ['method', 'route', 'status_code'] as const,
     buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [this.registry],
+  });
+
+  readonly eventsPublished = new Counter({
+    name: 'verarag_events_published_total',
+    help: 'Events the API tried to publish to NATS, by event type and outcome.',
+    labelNames: ['type', 'outcome'] as const,
     registers: [this.registry],
   });
 

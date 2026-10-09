@@ -1,4 +1,4 @@
-import { VersioningType } from '@nestjs/common';
+import { StandardSchemaValidationPipe, VersioningType } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 
@@ -14,5 +14,7 @@ export function configureApp(app: NestExpressApplication): void {
   app.useBodyParser('json', { limit: '16kb' });
   app.setGlobalPrefix('api', { exclude: [...OPERATIONAL_ROUTES] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  // Validates parameters declared with a schema, e.g. @Body({ schema }).
+  app.useGlobalPipes(new StandardSchemaValidationPipe());
   app.enableShutdownHooks();
 }

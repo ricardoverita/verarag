@@ -18,7 +18,10 @@ export class CheckTimeoutError extends Error {
 }
 
 export interface CheckFailureLogger {
-  warn(details: { component: ComponentName; err: unknown }, message: string): void;
+  warn(
+    details: { component: ComponentName; reason?: string; err?: unknown },
+    message: string,
+  ): void;
 }
 
 /**
@@ -39,13 +42,17 @@ export async function runCheck(
     const details = await withTimeout(check(), timeoutMs);
     return { name, status: 'up', latencyMs: elapsed(), ...(details ? { details } : {}) };
   } catch (error) {
-    logger.warn({ component: name, err: error }, `${name} check failed`);
-    const safe = error instanceof CheckFailedError || error instanceof CheckTimeoutError;
+    const expected = error instanceof CheckFailedError || error instanceof CheckTimeoutError;
+    // Expected failures are logged without a stack trace; anything else keeps the full error.
+    logger.warn(
+      { component: name, ...(expected ? { reason: error.message } : { err: error }) },
+      `${name} check failed`,
+    );
     return {
       name,
       status: 'down',
       latencyMs: elapsed(),
-      error: safe ? error.message : 'unavailable',
+      error: expected ? error.message : 'unavailable',
     };
   }
 }

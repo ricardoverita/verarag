@@ -18,6 +18,11 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: optional(z.string().min(1)),
   S3_SECRET_ACCESS_KEY: optional(z.string().min(1)),
   S3_FORCE_PATH_STYLE: z.stringbool().default(false),
+
+  /** One URL or a comma-separated list of NATS servers. */
+  NATS_URL: z.string().min(1).default('nats://localhost:4222'),
+
+  DEV_ENDPOINTS_ENABLED: z.stringbool().default(false),
 });
 
 export type LogLevel = z.infer<typeof envSchema>['LOG_LEVEL'];
@@ -34,6 +39,9 @@ export interface Config {
     credentials?: { accessKeyId: string; secretAccessKey: string };
     forcePathStyle: boolean;
   };
+  nats: { servers: string[] };
+  /** Enables /api/v1/dev/*. Meant for local development and integration tests only. */
+  devEndpointsEnabled: boolean;
 }
 
 /** Injection token for the validated configuration. */
@@ -73,5 +81,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
           : undefined,
       forcePathStyle: vars.S3_FORCE_PATH_STYLE,
     },
+    nats: { servers: vars.NATS_URL.split(',').map((server) => server.trim()) },
+    devEndpointsEnabled: vars.DEV_ENDPOINTS_ENABLED,
   };
 }

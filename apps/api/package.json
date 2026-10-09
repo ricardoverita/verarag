@@ -14,9 +14,13 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1140.0",
+    "@nats-io/jetstream": "^3.4.0",
+    "@nats-io/kv": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",
+    "@nestjs/throttler": "^6.7.1",
     "@prometheus-io/client": "^0.16.1",
     "@verarag/contracts": "workspace:*",
     "helmet": "^8.3.0",

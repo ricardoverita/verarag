@@ -1,8 +1,10 @@
 import { Controller, Get, Res, VERSION_NEUTRAL } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 
 import { MetricsService } from './metrics.service.js';
 
+@SkipThrottle()
 @Controller({ path: 'metrics', version: VERSION_NEUTRAL })
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}

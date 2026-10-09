@@ -2,7 +2,7 @@
 
 Contratos de los mensajes que intercambian los servicios de VeraRAG a través de NATS.
 
-La API (NestJS) y el worker (Go) están escritos en lenguajes distintos. Para que no terminen usando payloads incompatibles, los dos validan contra los mismos archivos JSON Schema de este directorio.
+La API (NestJS) y el worker (Go) están escritos en lenguajes distintos. Para que no terminen usando payloads incompatibles, los dos validan contra los mismos archivos JSON Schema de este directorio. La decisión está explicada en el [ADR 0006](../../docs/adr/0006-shared-contracts-with-json-schema.md).
 
 ## Contenido
 

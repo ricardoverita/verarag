@@ -1,0 +1,210 @@
+# Local development environment. Run `cp .env.example .env` first.
+#
+#   docker compose up --build
+#
+# Every published port is bound to 127.0.0.1, so nothing is reachable from
+# other machines on the network.
+
+name: verarag
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: verarag/web:local
+    restart: unless-stopped
+    environment:
+      # The web app calls the API from its server, never from the browser.
+      API_INTERNAL_URL: http://api:3001
+    ports:
+      - 127.0.0.1:${WEB_PORT:-3000}:3000
+    networks: [edge]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: verarag/api:local
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      NATS_URL: nats://nats:4222
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_FORCE_PATH_STYLE: 'true'
+      DEV_ENDPOINTS_ENABLED: ${DEV_ENDPOINTS_ENABLED:-false}
+    ports:
+      - 127.0.0.1:${API_PORT:-3001}:3001
+    networks: [edge, backend]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/readyz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      args:
+        VERSION: 0.1.0
+    image: verarag/worker:local
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NATS_URL: nats://nats:4222
+      WORKER_HTTP_ADDR: :8081
+      WORKER_SHUTDOWN_TIMEOUT: 15s
+    networks: [backend]
+    depends_on:
+      nats:
+        condition: service_healthy
+    # Longer than WORKER_SHUTDOWN_TIMEOUT, so events in progress can finish.
+    stop_grace_period: 20s
+    healthcheck:
+      test: [CMD, /usr/local/bin/worker, healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql/18.
+      - postgres-data:/var/lib/postgresql
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Applies the SQL migrations in apps/api/db/migrations and exits.
+  migrate:
+    image: ghcr.io/amacneil/dbmate:2.36.0
+    command: [--wait, --no-dump-schema, up]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DBMATE_MIGRATIONS_DIR: /db/migrations
+    volumes:
+      - ./apps/api/db/migrations:/db/migrations:ro
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Not used by the services yet. Caching, rate limiting and locks will
+  # move here when the API runs with several replicas.
+  redis:
+    image: redis:8.8.3-alpine
+    restart: unless-stopped
+    command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - redis-data:/data
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    image: nats:2.15.0-alpine
+    restart: unless-stopped
+    command: [--jetstream, --store_dir, /data, --http_port, '8222']
+    volumes:
+      - nats-data:/data
+    ports:
+      - 127.0.0.1:${NATS_PORT:-4222}:4222
+      - 127.0.0.1:${NATS_MONITOR_PORT:-8222}:8222
+    networks: [backend]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8222/healthz?js-enabled-only=true']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # MinIO stopped publishing community images; this build is maintained by
+  # Chainguard, which only offers the `latest` tag for free. Any
+  # S3-compatible server works, since the API only uses the S3 API.
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    restart: unless-stopped
+    command: [server, /data, --console-address, ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      MC_HOST_local: http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@127.0.0.1:9000
+    volumes:
+      - minio-data:/data
+    ports:
+      - 127.0.0.1:${MINIO_PORT:-9000}:9000
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
+    networks: [backend]
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Creates the documents bucket and exits. In AWS S3 or R2 the bucket is
+  # provisioned outside the application.
+  minio-init:
+    image: cgr.dev/chainguard/minio-client:latest
+    command: [mb, --ignore-existing, 'local/${S3_BUCKET:?set S3_BUCKET in .env}']
+    environment:
+      MC_HOST_local: http://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@minio:9000
+    networks: [backend]
+    depends_on:
+      minio:
+        condition: service_healthy
+
+networks:
+  # web <-> api
+  edge:
+  # api, worker and the infrastructure. The web app cannot reach it.
+  backend:
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  minio-data:

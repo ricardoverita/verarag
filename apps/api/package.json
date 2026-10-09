@@ -5,6 +5,9 @@
   "description": "VeraRAG control plane and main HTTP API.",
   "license": "Apache-2.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
@@ -40,6 +43,7 @@
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.1",
+    "typescript": "~6.0.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
   }

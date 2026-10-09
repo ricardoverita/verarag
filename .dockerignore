@@ -1,0 +1,13 @@
+# Images are built from the repository root so they can use the pnpm
+# workspace and packages/contracts. Keep the context small.
+.git
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+apps/worker/bin
+docs
+.env
+.env.*
+!.env.example

@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      # Reads the pnpm version from packageManager in package.json.
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+      # Also builds @verarag/contracts through its prepare script.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  go:
+    name: Go (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [packages/contracts, apps/worker]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not formatted with gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go build ./...
+
+  dependencies:
+    name: Dependency checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      # Blocks on high severity advisories in what ships to production.
+      # Development tooling is reviewed through Dependabot instead.
+      - name: pnpm audit (production dependencies)
+        run: pnpm audit --prod --audit-level high
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.x'
+          cache-dependency-path: |
+            apps/worker/go.sum
+            packages/contracts/go.sum
+      # Only fails when our code reaches a vulnerable function.
+      - name: govulncheck
+        run: |
+          for module in packages/contracts apps/worker; do
+            echo "::group::$module"
+            (cd "$module" && go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...)
+            echo "::endgroup::"
+          done
+      - name: Review new dependencies
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+
+  docker:
+    name: Docker and end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - name: Validate the Compose file
+        run: |
+          docker compose config --quiet
+          docker compose --profile observability config --quiet
+      - name: Build images
+        run: docker compose build
+      - name: Start the stack
+        run: docker compose up --detach --wait --wait-timeout 180
+      # API -> NATS JetStream -> worker, plus the health of every component.
+      - name: Smoke test
+        run: ./scripts/smoke-test.sh
+      - name: Show logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

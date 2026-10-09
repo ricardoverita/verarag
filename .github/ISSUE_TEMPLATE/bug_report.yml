@@ -1,0 +1,46 @@
+name: Reporte de error / Bug report
+description: Algo no funciona como debería. / Something does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportarlo. Para problemas de seguridad no uses este formulario: sigue [SECURITY.md](https://github.com/ricardoverita/verarag/blob/main/SECURITY.md).
+        Thanks for reporting it. For security problems do not use this form: follow [SECURITY.en.md](https://github.com/ricardoverita/verarag/blob/main/SECURITY.en.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Qué pasó / What happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Cómo reproducirlo / Steps to reproduce
+      placeholder: |
+        1. cp .env.example .env
+        2. docker compose up --build
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Qué esperabas / Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit o fecha del código / Commit or date of the code
+  - type: textarea
+    id: environment
+    attributes:
+      label: Entorno / Environment
+      description: Sistema operativo, versión de Docker y cómo lo ejecutas. / OS, Docker version and how you run it.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Por ejemplo / For example `docker compose logs api worker`. Revisa que no haya secretos. / Check there are no secrets.
+      render: shell

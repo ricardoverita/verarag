@@ -1,0 +1,29 @@
+name: Propuesta / Proposal
+description: Una funcionalidad o un cambio de diseño. / A feature or a design change.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Empieza por el problema, no por la solución. Revisa antes el [roadmap](https://github.com/ricardoverita/verarag/blob/main/docs/roadmap.md).
+        Start with the problem, not the solution. Check the [roadmap](https://github.com/ricardoverita/verarag/blob/main/docs/roadmap.md) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / Problem
+      description: Qué necesitas hacer y por qué hoy no se puede. / What you need to do and why it is not possible today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta / Proposal
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas / Alternatives considered
+  - type: input
+    id: phase
+    attributes:
+      label: Fase del roadmap relacionada / Related roadmap phase
+      placeholder: Fase 3 / Phase 3

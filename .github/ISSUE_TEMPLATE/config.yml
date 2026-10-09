@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Vulnerabilidades de seguridad / Security vulnerabilities
+    url: https://github.com/ricardoverita/verarag/security/policy
+    about: No las reportes en issues públicos. / Do not report them in public issues.

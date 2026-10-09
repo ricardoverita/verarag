@@ -1,3 +1,16 @@
 packages:
   - apps/*
   - packages/*
+
+# Dependencies may not run install scripts unless listed here.
+allowBuilds:
+  # Its postinstall only downloads a fallback binary when the prebuilt one is missing.
+  unrs-resolver: false
+
+peerDependencyRules:
+  # eslint-config-next still pulls plugins that do not list ESLint 10 as a
+  # peer. They work with it; remove these once the plugins catch up.
+  allowedVersions:
+    eslint-plugin-import>eslint: '10'
+    eslint-plugin-jsx-a11y>eslint: '10'
+    eslint-plugin-react>eslint: '10'

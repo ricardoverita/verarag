@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+**/dist/
+**/.next/
+**/coverage/
+LICENSE
+NOTICE
+# Official Contributor Covenant text, kept as published.
+CODE_OF_CONDUCT*.md

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:verarag:schema:events:system.test",
+  "title": "system.test",
+  "description": "Development event used to check that the API can publish to NATS and the worker can consume from it. It is not a product feature.",
+  "$ref": "urn:verarag:schema:events:envelope",
+  "type": "object",
+  "properties": {
+    "type": { "const": "system.test" },
+    "version": { "const": 1 },
+    "data": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  }
+}

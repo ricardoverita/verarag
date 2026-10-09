@@ -1,0 +1,11 @@
+{
+  "id": "0b8f6a4e-5c1d-4e2f-9a3b-7d6c5e4f3a2b",
+  "type": "system.test",
+  "version": 1,
+  "source": "api",
+  "occurredAt": "2026-10-09T10:15:30.000Z",
+  "correlationId": "5f2b9c1e-8d4a-4b6f-a1c3-e7d9f0b2a4c6",
+  "data": {
+    "message": "hello from VeraRAG"
+  }
+}

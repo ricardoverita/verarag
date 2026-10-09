@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:verarag:schema:status:worker-heartbeat",
+  "title": "Worker heartbeat",
+  "description": "Value each worker instance writes periodically to the worker heartbeat key-value bucket. The key is the instance id.",
+  "type": "object",
+  "required": ["instanceId", "version", "startedAt", "sentAt"],
+  "properties": {
+    "instanceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "description": "Worker build version.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

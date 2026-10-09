@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:verarag:schema:events:envelope",
+  "title": "Event envelope",
+  "description": "Fields shared by every event published to NATS. Each event type references this schema and narrows `type`, `version` and `data`.",
+  "type": "object",
+  "required": ["id", "type", "version", "source", "occurredAt", "data"],
+  "properties": {
+    "id": {
+      "description": "Unique event id. Publishers also send it as the Nats-Msg-Id header so JetStream can drop duplicates.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "type": {
+      "description": "Event type. It is always the NATS subject the event is published on.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$",
+      "maxLength": 128
+    },
+    "version": {
+      "description": "Version of the `data` schema for this event type.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "source": {
+      "description": "Service that emitted the event.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "occurredAt": {
+      "description": "When the event happened, in RFC 3339 format.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlationId": {
+      "description": "Id of the request or process that caused the event. Used to follow a flow across services in the logs.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "data": {
+      "description": "Event specific payload.",
+      "type": "object"
+    }
+  }
+}

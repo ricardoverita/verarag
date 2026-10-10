@@ -1,4 +1,4 @@
-import type { OrganizationDetail } from '@verarag/contracts';
+import type { CollectionsResponse, OrganizationDetail } from '@verarag/contracts';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -14,12 +14,8 @@ import styles from '../app.module.css';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
-/** What the next phases add. Shown as upcoming, never with made-up numbers. */
-const UPCOMING = [
-  { label: 'Documents', note: 'Uploads and ingestion arrive in phase 2.' },
-  { label: 'Collections', note: 'Grouping documents arrives in phase 2.' },
-  { label: 'Queries', note: 'Search and answers arrive in later phases.' },
-];
+/** What later phases add. Shown as upcoming, never with made-up numbers. */
+const UPCOMING = [{ label: 'Queries', note: 'Search and answers arrive in later phases.' }];
 
 export default function DashboardPage() {
   return (
@@ -51,9 +47,10 @@ async function Dashboard() {
     );
   }
 
-  const detail = await serverGet<OrganizationDetail>(
-    `/api/v1/organizations/${current.organization.id}`,
-  );
+  const [detail, collections] = await Promise.all([
+    serverGet<OrganizationDetail>(`/api/v1/organizations/${current.organization.id}`),
+    serverGet<CollectionsResponse>(`/api/v1/organizations/${current.organization.id}/collections`),
+  ]);
   if (!detail.ok) {
     return (
       <p className={ui.alert} role="alert">
@@ -62,6 +59,10 @@ async function Dashboard() {
     );
   }
   const { organization, role, memberCount } = detail.data;
+  const collectionCount = collections.ok ? collections.data.collections.length : undefined;
+  const documentCount = collections.ok
+    ? collections.data.collections.reduce((total, c) => total + c.documentCount, 0)
+    : undefined;
 
   return (
     <>
@@ -78,6 +79,16 @@ async function Dashboard() {
           <span className={styles.statLabel}>Members</span>
           <span className={styles.statValue}>{memberCount}</span>
           <span className={styles.statNote}>See who has access</span>
+        </Link>
+        <Link href="/collections" className={`${ui.card} ${styles.stat}`}>
+          <span className={styles.statLabel}>Collections</span>
+          <span className={styles.statValue}>{collectionCount ?? '—'}</span>
+          <span className={styles.statNote}>Open the collections</span>
+        </Link>
+        <Link href="/collections" className={`${ui.card} ${styles.stat}`}>
+          <span className={styles.statLabel}>Documents</span>
+          <span className={styles.statValue}>{documentCount ?? '—'}</span>
+          <span className={styles.statNote}>Stored files, not processed yet</span>
         </Link>
         {UPCOMING.map((item) => (
           <div key={item.label} className={`${ui.card} ${styles.stat}`}>

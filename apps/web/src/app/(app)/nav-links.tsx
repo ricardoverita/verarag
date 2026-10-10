@@ -7,6 +7,7 @@ import styles from './app.module.css';
 
 const LINKS = [
   { href: '/dashboard', label: 'Dashboard', managersOnly: false },
+  { href: '/collections', label: 'Collections', managersOnly: false },
   { href: '/settings/organization', label: 'Organization', managersOnly: false },
   { href: '/settings/members', label: 'Members', managersOnly: false },
   { href: '/settings/api-keys', label: 'API keys', managersOnly: true },
@@ -31,7 +32,9 @@ export function NavLinks({
           key={link.href}
           href={link.href}
           className={styles.navLink}
-          aria-current={pathname === link.href ? 'page' : undefined}
+          aria-current={
+            pathname === link.href || pathname.startsWith(`${link.href}/`) ? 'page' : undefined
+          }
         >
           {link.label}
         </Link>

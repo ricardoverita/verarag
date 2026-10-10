@@ -35,6 +35,19 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex' },
         ],
       },
+      // The /api/v1 proxy only answers JSON and document downloads, which must
+      // never run anything. These headers replace whatever a route handler
+      // sets, including the API's own download policy, so the strictest one
+      // is set here: a page from /api can load nothing and is sandboxed.
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'none'; sandbox; frame-ancestors 'none'",
+          },
+        ],
+      },
     ]);
   },
 };

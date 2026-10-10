@@ -43,6 +43,10 @@ export function createFakes() {
     storage: {
       bucket: testConfig.storage.bucket,
       checkBucket: vi.fn().mockResolvedValue({ bucket: testConfig.storage.bucket }),
+      put: vi.fn().mockResolvedValue(undefined),
+      head: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
       onApplicationShutdown: vi.fn(),
     },
     nats: {
@@ -63,6 +67,8 @@ export interface TestAppOptions {
   config?: Partial<Config>;
   /** Use a real PostgreSQL database instead of the in-memory pool. */
   databaseUrl?: string;
+  /** Use the real ObjectStorage, configured by `config.storage`, instead of the fake. */
+  realStorage?: boolean;
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<NestExpressApplication> {
@@ -73,10 +79,11 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<NestE
   }
 
   let builder = Test.createTestingModule({ imports: [AppModule.forRoot(config)] })
-    .overrideProvider(ObjectStorage)
-    .useValue(fakes.storage)
     .overrideProvider(NatsClient)
     .useValue(fakes.nats);
+  if (!options.realStorage) {
+    builder = builder.overrideProvider(ObjectStorage).useValue(fakes.storage);
+  }
   if (!options.databaseUrl) {
     builder = builder.overrideProvider(Pool).useValue(fakes.pool);
   }

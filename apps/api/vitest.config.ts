@@ -11,12 +11,13 @@ export default defineConfig({
         },
       },
       {
-        // Runs against a real PostgreSQL started with Testcontainers; needs Docker.
+        // Runs against a real PostgreSQL and a real S3-compatible server (MinIO),
+        // started with Testcontainers; needs Docker.
         extends: true,
         test: {
           name: 'integration',
           include: ['test/integration/**/*.spec.ts'],
-          globalSetup: ['test/support/postgres.global-setup.ts'],
+          globalSetup: ['test/support/containers.global-setup.ts'],
           testTimeout: 30_000,
           hookTimeout: 180_000,
         },

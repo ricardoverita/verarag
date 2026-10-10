@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
 
-import { TEMPLATE_DATABASE, withDatabase } from './postgres.global-setup.js';
+import { TEMPLATE_DATABASE, withDatabase } from './containers.global-setup.js';
 
 export interface TestDatabase {
   url: string;

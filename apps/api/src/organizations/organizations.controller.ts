@@ -1,14 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { MembershipSummary, OrganizationDetail } from '@verarag/contracts';
 import type { Request } from 'express';
 
@@ -35,14 +26,14 @@ import {
 } from './organizations.dto.js';
 import { OrganizationsService } from './organizations.service.js';
 
+@ApiTags('organizations')
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizations: OrganizationsService) {}
 
   /** Creates another organization with the caller as its OWNER. */
   @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ResponseSchema(membershipSummary)
+  @ResponseSchema(membershipSummary, HttpStatus.CREATED)
   async create(
     @Body({ schema: createOrganizationRequest }) body: CreateOrganizationRequest,
     @CurrentUser() user: AuthenticatedUser,
@@ -72,6 +63,7 @@ export class OrganizationsController {
 
   @Get(':organizationId')
   @UseGuards(OrganizationAccessGuard)
+  @ApiParam({ name: 'organizationId', format: 'uuid' })
   @ResponseSchema(organizationDetail)
   async get(@CurrentAccess() access: OrganizationAccess): Promise<OrganizationDetail> {
     const { organization, memberCount } = await this.organizations.detail(access);
@@ -80,6 +72,7 @@ export class OrganizationsController {
 
   @Patch(':organizationId')
   @UseGuards(OrganizationAccessGuard)
+  @ApiParam({ name: 'organizationId', format: 'uuid' })
   @OrganizationRoles('OWNER', 'ADMIN')
   @ResponseSchema(organizationDetail)
   async update(

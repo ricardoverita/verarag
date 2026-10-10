@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import type { InvitationPreview, MembershipSummary, RegisterResponse } from '@verarag/contracts';
 import type { Request, Response } from 'express';
 
@@ -26,6 +27,7 @@ import { InvitationsService } from './invitations.service.js';
  * in the request body, never in the path, so it stays out of access logs.
  * Tokens are 256-bit random values; the rate limits are defense in depth.
  */
+@ApiTags('invitations')
 @Controller('invitations')
 export class InvitationLinksController {
   constructor(
@@ -35,9 +37,8 @@ export class InvitationLinksController {
 
   @Post('preview')
   @Public()
-  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @ResponseSchema(invitationPreview)
+  @ResponseSchema(invitationPreview, HttpStatus.OK)
   async preview(
     @Body({ schema: invitationTokenRequest }) body: InvitationTokenRequest,
   ): Promise<InvitationPreview> {
@@ -46,9 +47,8 @@ export class InvitationLinksController {
 
   /** Accepts as the signed-in user. */
   @Post('accept')
-  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ResponseSchema(membershipSummary)
+  @ResponseSchema(membershipSummary, HttpStatus.OK)
   async accept(
     @Body({ schema: invitationTokenRequest }) body: InvitationTokenRequest,
     @CurrentUser() user: AuthenticatedUser,
@@ -69,9 +69,8 @@ export class InvitationLinksController {
   /** Accepts by creating an account for the invited email, and signs in. */
   @Post('register')
   @Public()
-  @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
-  @ResponseSchema(registerResponse)
+  @ResponseSchema(registerResponse, HttpStatus.CREATED)
   async register(
     @Body({ schema: registerWithInvitationRequest }) body: RegisterWithInvitationRequest,
     @Req() req: Request,

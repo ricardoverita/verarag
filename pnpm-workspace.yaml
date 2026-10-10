@@ -12,6 +12,8 @@ allowBuilds:
   ssh2: false
   # Its postinstall only checks the installed version.
   protobufjs: false
+  # Usage analytics pulled in by swagger-ui-dist. Its postinstall only reports installs.
+  '@scarf/scarf': false
 
 peerDependencyRules:
   # eslint-config-next still pulls plugins that do not list ESLint 10 as a

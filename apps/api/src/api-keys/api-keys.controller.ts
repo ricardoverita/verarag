@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { ApiKeysResponse, CreatedApiKeyResponse } from '@verarag/contracts';
 import type { Request } from 'express';
 
@@ -32,15 +33,16 @@ import {
 import { ApiKeysService } from './api-keys.service.js';
 
 /** API keys of one organization, managed by its owners and admins with a session. */
+@ApiTags('api-keys')
 @Controller('organizations/:organizationId/api-keys')
 @UseGuards(OrganizationAccessGuard)
+@ApiParam({ name: 'organizationId', format: 'uuid' })
 @OrganizationRoles('OWNER', 'ADMIN')
 export class ApiKeysController {
   constructor(private readonly apiKeys: ApiKeysService) {}
 
   @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ResponseSchema(createdApiKeyResponse)
+  @ResponseSchema(createdApiKeyResponse, HttpStatus.CREATED)
   async create(
     @CurrentAccess() access: OrganizationAccess,
     @Body({ schema: createApiKeyRequest }) body: CreateApiKeyRequest,

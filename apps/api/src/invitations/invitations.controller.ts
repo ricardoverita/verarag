@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { CreatedInvitationResponse, InvitationsResponse } from '@verarag/contracts';
 import type { Request } from 'express';
 
@@ -32,15 +33,16 @@ import {
 import { InvitationsService } from './invitations.service.js';
 
 /** Invitations of one organization, managed by its owners and admins. */
+@ApiTags('invitations')
 @Controller('organizations/:organizationId/invitations')
 @UseGuards(OrganizationAccessGuard)
+@ApiParam({ name: 'organizationId', format: 'uuid' })
 @OrganizationRoles('OWNER', 'ADMIN')
 export class InvitationsController {
   constructor(private readonly invitations: InvitationsService) {}
 
   @Post()
-  @HttpCode(HttpStatus.CREATED)
-  @ResponseSchema(createdInvitationResponse)
+  @ResponseSchema(createdInvitationResponse, HttpStatus.CREATED)
   async create(
     @CurrentAccess() access: OrganizationAccess,
     @Body({ schema: createInvitationRequest }) body: CreateInvitationRequest,

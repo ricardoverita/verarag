@@ -9,11 +9,13 @@ import { CONFIG, type Config } from './config/config.js';
 import { httpMetricsMiddleware } from './observability/http-metrics.middleware.js';
 import { httpTracingMiddleware } from './observability/http-tracing.middleware.js';
 import { MetricsService } from './observability/metrics.service.js';
+import { setupOpenApi } from './openapi.js';
 import { OPERATIONAL_ROUTES } from './routes.js';
 
 /** HTTP setup shared by main.ts and the HTTP tests. */
 export function configureApp(app: NestExpressApplication): void {
-  app.set('trust proxy', app.get<Config>(CONFIG).http.trustProxy);
+  const config = app.get<Config>(CONFIG);
+  app.set('trust proxy', config.http.trustProxy);
   app.use(httpMetricsMiddleware(app.get(MetricsService)));
   app.use(helmet());
   // Responses carry user and organization data: never cache them.
@@ -29,5 +31,6 @@ export function configureApp(app: NestExpressApplication): void {
   app.useGlobalPipes(validationPipe());
   // Applies the response schemas declared with @ResponseSchema.
   app.useGlobalInterceptors(new StandardSchemaSerializerInterceptor(app.get(Reflector)));
+  setupOpenApi(app, config);
   app.enableShutdownHooks();
 }

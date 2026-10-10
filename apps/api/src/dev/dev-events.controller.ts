@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { EventTypes, type SystemTestEvent } from '@verarag/contracts';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -28,6 +29,7 @@ type DevEventRequest = z.infer<typeof devEventRequest>;
  */
 // Never mounted in production; see DEV_ENDPOINTS_ENABLED.
 @Public()
+@ApiTags('development')
 @Controller('dev/events')
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class DevEventsController {

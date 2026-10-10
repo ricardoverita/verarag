@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import type { MeResponse, RegisterResponse } from '@verarag/contracts';
 import type { Request, Response } from 'express';
 
@@ -21,6 +22,7 @@ import { AuthService } from './auth.service.js';
 import type { AuthenticatedUser, Principal, SessionPrincipal } from './principal.js';
 import { SessionCookie } from './session-cookie.js';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -31,9 +33,8 @@ export class AuthController {
   /** Creates the account and its first organization, and signs in. */
   @Post('register')
   @Public()
-  @HttpCode(HttpStatus.CREATED)
   @Throttle({ default: { limit: 5, ttl: 10 * 60_000 } })
-  @ResponseSchema(registerResponse)
+  @ResponseSchema(registerResponse, HttpStatus.CREATED)
   async register(
     @Body({ schema: registerRequest }) body: RegisterRequest,
     @Req() req: Request,
@@ -53,9 +54,8 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ResponseSchema(meResponse)
+  @ResponseSchema(meResponse, HttpStatus.OK)
   async login(
     @Body({ schema: loginRequest }) body: LoginRequest,
     @Req() req: Request,

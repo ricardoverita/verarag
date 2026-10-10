@@ -48,3 +48,6 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   SERVICE_UNAVAILABLE: 'The service is temporarily unavailable.',
   INTERNAL_ERROR: 'Something went wrong on our side.',
 };
+
+/** Every error code, for the OpenAPI document. */
+export const API_ERROR_CODES = Object.keys(DEFAULT_MESSAGES) as [ApiErrorCode, ...ApiErrorCode[]];

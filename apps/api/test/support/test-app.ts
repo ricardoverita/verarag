@@ -22,6 +22,7 @@ export const testConfig: Config = {
   web: { publicUrl: 'http://localhost:3000', origin: 'http://localhost:3000' },
   sessions: { ttlHours: 168, cookieSecure: false, cookieName: 'verarag_session' },
   invitations: { ttlHours: 168 },
+  openApi: { enabled: true },
 };
 
 export const workerHeartbeat = {

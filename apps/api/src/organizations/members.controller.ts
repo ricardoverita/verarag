@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { MembersResponse } from '@verarag/contracts';
 import type { Request } from 'express';
 
@@ -30,8 +31,10 @@ import {
 } from './organizations.dto.js';
 import { OrganizationsService } from './organizations.service.js';
 
+@ApiTags('members')
 @Controller('organizations/:organizationId/members')
 @UseGuards(OrganizationAccessGuard)
+@ApiParam({ name: 'organizationId', format: 'uuid' })
 export class MembersController {
   constructor(private readonly organizations: OrganizationsService) {}
 

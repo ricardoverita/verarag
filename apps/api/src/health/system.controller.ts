@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import type { SystemStatus } from '@verarag/contracts';
 
 import { ApiKeyScopes } from '../auth/auth.decorators.js';
@@ -7,6 +8,7 @@ import { SystemStatusService } from './system-status.service.js';
 
 // The web app polls this endpoint, and SystemStatusService caches the result.
 @SkipThrottle()
+@ApiTags('system')
 @Controller('system')
 export class SystemController {
   constructor(private readonly systemStatus: SystemStatusService) {}

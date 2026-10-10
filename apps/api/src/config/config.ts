@@ -50,6 +50,8 @@ const envSchema = z.object({
     .default(7 * 24),
   /** Defaults to true in production, where it cannot be turned off. */
   SESSION_COOKIE_SECURE: optional(z.stringbool()),
+  /** Serves /api/docs. Defaults to on outside production and off in production. */
+  OPENAPI_ENABLED: optional(z.stringbool()),
   INVITATION_TTL_HOURS: z.coerce
     .number()
     .int()
@@ -90,6 +92,8 @@ export interface Config {
     cookieName: string;
   };
   invitations: { ttlHours: number };
+  /** Interactive documentation at /api/docs and the document at /api/docs/openapi.json. */
+  openApi: { enabled: boolean };
 }
 
 /** Injection token for the validated configuration. */
@@ -152,5 +156,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       cookieName: cookieSecure ? '__Host-verarag_session' : 'verarag_session',
     },
     invitations: { ttlHours: vars.INVITATION_TTL_HOURS },
+    openApi: { enabled: vars.OPENAPI_ENABLED ?? !production },
   };
 }

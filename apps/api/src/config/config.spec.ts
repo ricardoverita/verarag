@@ -28,6 +28,7 @@ describe('loadConfig', () => {
       cookieName: '__Host-verarag_session',
     });
     expect(config.invitations).toEqual({ ttlHours: 168 });
+    expect(config.openApi).toEqual({ enabled: false });
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',
@@ -92,6 +93,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...baseEnv, SESSION_COOKIE_SECURE: 'false' })).toThrow(
       /SESSION_COOKIE_SECURE cannot be false/,
     );
+  });
+
+  it('serves the API documentation outside production unless told otherwise', () => {
+    expect(loadConfig({ ...baseEnv, APP_ENV: 'development' }).openApi.enabled).toBe(true);
+    expect(
+      loadConfig({ ...baseEnv, APP_ENV: 'development', OPENAPI_ENABLED: 'false' }).openApi.enabled,
+    ).toBe(false);
+    expect(loadConfig(baseEnv).openApi.enabled).toBe(false);
+    expect(loadConfig({ ...baseEnv, OPENAPI_ENABLED: 'true' }).openApi.enabled).toBe(true);
   });
 
   it('treats empty variables as unset', () => {

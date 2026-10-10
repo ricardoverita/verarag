@@ -16,7 +16,10 @@ import { RegisterWithInvitationForm } from './register-with-invitation-form';
 
 export const metadata: Metadata = { title: 'Invitation', robots: { index: false } };
 
-export default function InvitationPage({ params }: PageProps<'/invitations/[token]'>) {
+// Plain types instead of the generated PageProps, so linting does not depend on `next typegen`.
+type InvitationParams = { params: Promise<{ token: string }> };
+
+export default function InvitationPage({ params }: InvitationParams) {
   return (
     <Suspense fallback={<div className={ui.skeleton} style={{ height: 280 }} />}>
       <Invitation params={params} />
@@ -24,7 +27,7 @@ export default function InvitationPage({ params }: PageProps<'/invitations/[toke
   );
 }
 
-async function Invitation({ params }: { params: PageProps<'/invitations/[token]'>['params'] }) {
+async function Invitation({ params }: InvitationParams) {
   const { token } = await params;
   // The token goes to the API in a request body, never in a URL it would log.
   const [preview, session] = await Promise.all([

@@ -20,7 +20,7 @@ const TIMEOUT_MS = 10_000;
  */
 async function proxy(
   request: NextRequest,
-  { params }: RouteContext<'/api/v1/[...path]'>,
+  { params }: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
   if (!isSameOrigin(request.method, request.headers)) {
     return error(403, 'FORBIDDEN_ORIGIN', 'This request was sent from a site that is not allowed.');

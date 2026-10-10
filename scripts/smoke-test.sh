@@ -6,10 +6,14 @@
 #      sign-up, sign-out, sign-in, a second organization, an invitation
 #      accepted by a new user, members, and an API key created, used and
 #      revoked;
-#   3. another tenant cannot see any of it;
-#   4. no password, session token, invitation token or API key reaches the
-#      logs;
-#   5. an event published through POST /api/v1/dev/events reaches the
+#   3. documents work end to end through the web app: a collection, an
+#      upload, its metadata and checksum, a byte-for-byte download with
+#      safe headers, the object in a private bucket under an id-only key,
+#      and a deletion that removes it;
+#   4. another tenant cannot see any of it;
+#   5. no password, session token, invitation token, API key or document
+#      content reaches the logs;
+#   6. an event published through POST /api/v1/dev/events reaches the
 #      worker through NATS JetStream and shows up in its logs.
 #
 # CI runs it after `docker compose up --wait`. It needs curl, jq and Docker,
@@ -31,6 +35,8 @@ env_value() {
 
 API_URL="${API_URL:-http://127.0.0.1:$(env_value API_PORT 3001)}"
 WEB_URL="${WEB_URL:-http://127.0.0.1:$(env_value WEB_PORT 3000)}"
+MINIO_URL="${MINIO_URL:-http://127.0.0.1:$(env_value MINIO_PORT 9000)}"
+BUCKET="$(env_value S3_BUCKET verarag-documents)"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-60}"
 
 step() { printf '\n==> %s\n' "$*"; }
@@ -74,6 +80,27 @@ expect() {
     fi
     fail "$2: expected HTTP $1, got $STATUS: $BODY"
   fi
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+# upload <client> <collection path> <file> <type>: a multipart upload through
+# the web app, like the browser's. Sets STATUS and BODY.
+upload() {
+  local jar="$workdir/$1.cookies"
+  STATUS=$(curl -sS -b "$jar" -c "$jar" -H "Origin: $WEB_URL" -F "file=@$3;type=$4" \
+    -o "$workdir/body" -w '%{http_code}' "$WEB_URL$2/documents")
+  BODY=$(cat "$workdir/body")
+}
+
+object_exists() {
+  docker compose exec -T minio mc stat "local/$BUCKET/$1" >/dev/null 2>&1
 }
 
 session_token() {
@@ -215,11 +242,71 @@ status_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $
 [[ "$status_code" == "401" ]] || fail "the revoked API key still answered $status_code"
 echo "    created, used through the API and the web app, revoked"
 
+step "Documents"
+call ana POST "/api/v1/organizations/$labs/collections" '{"name": "Smoke manuals"}'
+expect 201 "creating a collection"
+collection="/api/v1/organizations/$labs/collections/$(jq -r '.id' <<<"$BODY")"
+document_marker="smoke document content $stamp"
+printf '# Smoke guide\n\n%s\n' "$document_marker" >"$workdir/guide.md"
+secrets+=("$document_marker")
+
+upload ana "$collection" "$workdir/guide.md" text/markdown
+expect 201 "uploading a Markdown file"
+guide_id=$(jq -r '.id' <<<"$BODY")
+[[ "$(jq -r '.status' <<<"$BODY")" == "AVAILABLE" ]] || fail "the upload is not AVAILABLE: $BODY"
+[[ "$(jq -r '.sha256' <<<"$BODY")" == "$(sha256_of "$workdir/guide.md")" ]] ||
+  fail "the stored SHA-256 does not match the file"
+[[ "$(jq -r '.sizeBytes' <<<"$BODY")" == "$(wc -c <"$workdir/guide.md" | tr -d ' ')" ]] ||
+  fail "the stored size does not match the file"
+call bruno GET "$collection/documents"
+expect 200 "listing documents as a MEMBER"
+[[ "$(jq -r '.documents[0].filename' <<<"$BODY")" == "guide.md" ]] || fail "the document is not listed"
+upload bruno "$collection" "$workdir/guide.md" text/markdown
+expect 403 "a MEMBER uploading a document"
+
+key="organizations/$labs/documents/$guide_id/source"
+object_exists "$key" || fail "the object is not in the bucket under $key"
+status_code=$(curl -s -o /dev/null -w '%{http_code}' "$MINIO_URL/$BUCKET/$key")
+[[ "$status_code" == "403" ]] || fail "the bucket answered $status_code to an anonymous read"
+
+content="/api/v1/organizations/$labs/documents/$guide_id/content"
+curl -sS -b "$workdir/bruno.cookies" -D "$workdir/download-headers" -o "$workdir/downloaded.md" \
+  "$WEB_URL$content"
+cmp -s "$workdir/guide.md" "$workdir/downloaded.md" || fail "the download differs from the upload"
+grep -qi '^content-disposition: attachment' "$workdir/download-headers" ||
+  fail "the download is not an attachment"
+grep -qi '^x-content-type-options: nosniff' "$workdir/download-headers" ||
+  fail "the download can be sniffed"
+grep -qi "^content-security-policy: default-src 'none'; sandbox" "$workdir/download-headers" ||
+  fail "the download is not sandboxed"
+
+printf '<h1>Smoke</h1><script>alert(1)</script>\n' >"$workdir/page.html"
+upload ana "$collection" "$workdir/page.html" text/html
+expect 201 "uploading an HTML file"
+page_id=$(jq -r '.id' <<<"$BODY")
+curl -sS -b "$workdir/ana.cookies" -D "$workdir/html-headers" -o /dev/null \
+  "$WEB_URL/api/v1/organizations/$labs/documents/$page_id/content"
+grep -qi '^content-disposition: attachment; filename=page.html' "$workdir/html-headers" ||
+  fail "uploaded HTML is not sent as an attachment"
+
+printf 'MZ\x90\x00binary' >"$workdir/setup.exe"
+upload ana "$collection" "$workdir/setup.exe" application/octet-stream
+expect 415 "uploading an executable"
+
+call ana DELETE "/api/v1/organizations/$labs/documents/$guide_id"
+expect 204 "deleting the document"
+object_exists "$key" && fail "the object is still in the bucket after the deletion"
+call ana GET "$content"
+expect 404 "downloading a deleted document"
+echo "    uploaded, listed, checked (SHA-256, size, private bucket, id-only key), downloaded"
+echo "    byte for byte as an attachment, refused an executable, deleted with its object"
+
 step "Tenant isolation"
 call carla POST /api/v1/auth/register "$(account "$carla_email" "$carla_password" "Carla" "Smoke Other $stamp")"
 expect 201 "registering Carla"
 secrets+=("$(session_token carla)")
-for path in "" /members /invitations /api-keys; do
+for path in "" /members /invitations /api-keys /collections "/collections/${collection##*/}/documents" \
+  "/documents/$page_id" "/documents/$page_id/content"; do
   call carla GET "/api/v1/organizations/$labs$path"
   expect 404 "Carla reading /organizations/<Ana's>$path"
 done
@@ -227,17 +314,23 @@ call carla PATCH "/api/v1/organizations/$labs" '{"name": "Taken"}'
 expect 404 "Carla renaming Ana's organization"
 call carla DELETE "/api/v1/organizations/$labs/api-keys/$api_key_id"
 expect 404 "Carla revoking Ana's API key"
-echo "    every request about Ana's organization answers 404 to Carla"
+call carla DELETE "/api/v1/organizations/$labs/documents/$page_id"
+expect 404 "Carla deleting Ana's document"
+upload carla "$collection" "$workdir/page.html" text/html
+expect 404 "Carla uploading into Ana's collection"
+call ana GET "/api/v1/organizations/$labs/documents/$page_id"
+expect 200 "Ana's document after Carla's attempts"
+echo "    every request about Ana's organization, documents included, answers 404 to Carla"
 
 step "Secrets in the logs"
 docker compose logs --no-color api web >"$workdir/logs" 2>&1
 for secret in "${secrets[@]}"; do
   [[ -n "$secret" ]] || continue
   if grep -qF -- "$secret" "$workdir/logs"; then
-    fail "a password, token or API key appears in the logs"
+    fail "a password, token, API key or document content appears in the logs"
   fi
 done
-echo "    none of the ${#secrets[@]} passwords, tokens and keys used appear in the logs"
+echo "    none of the ${#secrets[@]} passwords, tokens, keys and document contents used appear in the logs"
 
 step "Event flow: API -> NATS JetStream -> worker"
 worker_log_line() {

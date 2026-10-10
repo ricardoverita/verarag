@@ -16,9 +16,10 @@ export async function SystemStatusPanel() {
 
   const result = await fetchSystemStatus(process.env.API_INTERNAL_URL ?? 'http://localhost:3001');
   const views = toComponentViews(result);
-  const checkedAt = result.reachable
-    ? new Date(result.status.checkedAt).toISOString().slice(11, 19)
-    : undefined;
+  const checkedAt =
+    result.kind === 'ok'
+      ? new Date(result.status.checkedAt).toISOString().slice(11, 19)
+      : undefined;
 
   return (
     <>

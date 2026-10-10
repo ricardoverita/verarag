@@ -109,6 +109,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     problems.push('S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be set together');
   }
   const production = vars.APP_ENV === 'production';
+  if (production && vars.DEV_ENDPOINTS_ENABLED) {
+    problems.push('DEV_ENDPOINTS_ENABLED cannot be true when APP_ENV=production');
+  }
   if (production && vars.SESSION_COOKIE_SECURE === false) {
     problems.push('SESSION_COOKIE_SECURE cannot be false when APP_ENV=production');
   }

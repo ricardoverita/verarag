@@ -12,17 +12,17 @@ import (
 
 // New returns an HTTP server with:
 //
-//	GET /healthz  the process is running
-//	GET /readyz   ready returns nil, i.e. the worker can process events
-//	GET /metrics  Prometheus metrics from gatherer
+//	GET /health/live   the process is running
+//	GET /health/ready  ready returns nil, i.e. the worker can process events
+//	GET /metrics       Prometheus metrics from gatherer
 func New(addr string, gatherer prometheus.Gatherer, ready func() error) *http.Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, _ *http.Request) {
 		if err := ready(); err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable", "reason": err.Error()})
 			return

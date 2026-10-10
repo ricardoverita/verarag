@@ -14,13 +14,13 @@ export class HealthController {
   constructor(private readonly systemStatus: SystemStatusService) {}
 
   /** Liveness: the process is up and serving HTTP. It never checks dependencies. */
-  @Get('healthz')
+  @Get('health/live')
   live(): { status: 'ok' } {
     return { status: 'ok' };
   }
 
   /** Readiness: the API can reach the dependencies it needs to serve requests. */
-  @Get('readyz')
+  @Get('health/ready')
   async ready(@Res({ passthrough: true }) res: Response): Promise<Readiness> {
     const readiness = await this.systemStatus.readiness();
     if (readiness.status !== 'ok') {

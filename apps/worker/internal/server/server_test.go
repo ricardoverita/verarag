@@ -23,22 +23,22 @@ func TestProbes(t *testing.T) {
 	var readyErr error
 	srv := New(":0", prometheus.NewRegistry(), func() error { return readyErr })
 
-	if code, _ := get(t, srv.Handler, "/healthz"); code != http.StatusOK {
-		t.Errorf("/healthz = %d", code)
+	if code, _ := get(t, srv.Handler, "/health/live"); code != http.StatusOK {
+		t.Errorf("/health/live = %d", code)
 	}
-	if code, _ := get(t, srv.Handler, "/readyz"); code != http.StatusOK {
-		t.Errorf("/readyz while ready = %d", code)
+	if code, _ := get(t, srv.Handler, "/health/ready"); code != http.StatusOK {
+		t.Errorf("/health/ready while ready = %d", code)
 	}
 
 	readyErr = errors.New("not connected to NATS")
-	code, body := get(t, srv.Handler, "/readyz")
+	code, body := get(t, srv.Handler, "/health/ready")
 	if code != http.StatusServiceUnavailable || !strings.Contains(body, "not connected to NATS") {
-		t.Errorf("/readyz while not ready = %d %s", code, body)
+		t.Errorf("/health/ready while not ready = %d %s", code, body)
 	}
 
 	// Liveness does not depend on readiness.
-	if code, _ := get(t, srv.Handler, "/healthz"); code != http.StatusOK {
-		t.Errorf("/healthz while not ready = %d", code)
+	if code, _ := get(t, srv.Handler, "/health/live"); code != http.StatusOK {
+		t.Errorf("/health/live while not ready = %d", code)
 	}
 }
 

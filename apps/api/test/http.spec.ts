@@ -1,5 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import type { ApiErrorResponse, SystemStatus } from '@verarag/contracts';
+import type { ApiErrorResponse } from '@verarag/contracts';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -18,17 +18,17 @@ describe('HTTP API', () => {
     await app.close();
   });
 
-  describe('GET /healthz', () => {
+  describe('GET /health/live', () => {
     it('answers without touching dependencies', async () => {
       fakes.pool.query.mockRejectedValue(new Error('database is down'));
 
-      await request(app.getHttpServer()).get('/healthz').expect(200, { status: 'ok' });
+      await request(app.getHttpServer()).get('/health/live').expect(200, { status: 'ok' });
     });
   });
 
-  describe('GET /readyz', () => {
+  describe('GET /health/ready', () => {
     it('is ready when the database and NATS answer', async () => {
-      const response = await request(app.getHttpServer()).get('/readyz').expect(200);
+      const response = await request(app.getHttpServer()).get('/health/ready').expect(200);
 
       expect(response.body).toMatchObject({
         status: 'ok',
@@ -42,7 +42,7 @@ describe('HTTP API', () => {
     it('returns 503 when the database is unreachable', async () => {
       fakes.pool.query.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
-      const response = await request(app.getHttpServer()).get('/readyz').expect(503);
+      const response = await request(app.getHttpServer()).get('/health/ready').expect(503);
 
       expect(response.body).toMatchObject({
         status: 'unavailable',
@@ -53,45 +53,15 @@ describe('HTTP API', () => {
     it('returns 503 when NATS is unreachable', async () => {
       fakes.nats.ping.mockRejectedValue(new Error('disconnected'));
 
-      await request(app.getHttpServer()).get('/readyz').expect(503);
+      await request(app.getHttpServer()).get('/health/ready').expect(503);
     });
   });
 
   describe('GET /api/v1/system/status', () => {
-    it('reports every component', async () => {
-      const response = await request(app.getHttpServer()).get('/api/v1/system/status').expect(200);
-      const status = response.body as SystemStatus;
+    it('requires a session', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/system/status').expect(401);
 
-      expect(status.version).toMatch(/^\d+\.\d+\.\d+/);
-      expect(status).toMatchObject({
-        status: 'ok',
-        components: [
-          { name: 'database', status: 'up', details: { pgvector: '0.8.7' } },
-          { name: 'messaging', status: 'up', details: { server: '2.15.0' } },
-          { name: 'worker', status: 'up', details: { instances: 1, version: '0.1.0' } },
-          { name: 'storage', status: 'up', details: { bucket: 'verarag-documents' } },
-        ],
-      });
-    });
-
-    it('reports a degraded system when a component is down', async () => {
-      fakes.storage.checkBucket.mockRejectedValue(new Error('socket hang up'));
-      fakes.nats.readBucket.mockResolvedValue(new Map());
-
-      const response = await request(app.getHttpServer()).get('/api/v1/system/status').expect(200);
-      const status = response.body as SystemStatus;
-
-      expect(status.status).toBe('degraded');
-      expect(status.components).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            name: 'worker',
-            status: 'down',
-            error: 'no worker is sending heartbeats',
-          }),
-          expect.objectContaining({ name: 'storage', status: 'down', error: 'unavailable' }),
-        ]),
-      );
+      expect((response.body as ApiErrorResponse).error.code).toBe('AUTHENTICATION_REQUIRED');
     });
   });
 
@@ -200,7 +170,7 @@ describe('HTTP API', () => {
   describe('request ids', () => {
     it('echoes a valid incoming request id', async () => {
       const response = await request(app.getHttpServer())
-        .get('/healthz')
+        .get('/health/live')
         .set('x-request-id', 'smoke-test-42')
         .expect(200);
 
@@ -208,27 +178,31 @@ describe('HTTP API', () => {
     });
 
     it('creates one when the client does not send it', async () => {
-      const response = await request(app.getHttpServer()).get('/healthz').expect(200);
+      const response = await request(app.getHttpServer()).get('/health/live').expect(200);
 
       expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
-  it('sends security headers', async () => {
-    const response = await request(app.getHttpServer()).get('/healthz').expect(200);
+  it('sends security headers and forbids caching', async () => {
+    const response = await request(app.getHttpServer()).get('/health/live').expect(200);
 
+    expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-powered-by']).toBeUndefined();
   });
 
   it('exposes Prometheus metrics labelled by route', async () => {
-    await request(app.getHttpServer()).get('/api/v1/system/status').expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v1/dev/events')
+      .send({ type: 'system.test', message: 'metrics' })
+      .expect(202);
 
     const response = await request(app.getHttpServer()).get('/metrics').expect(200);
 
     expect(response.headers['content-type']).toContain('text/plain');
     expect(response.text).toContain(
-      'http_server_request_duration_seconds_count{method="GET",route="/api/v1/system/status",status_code="200"} 1',
+      'http_server_request_duration_seconds_count{method="POST",route="/api/v1/dev/events",status_code="202"} 1',
     );
     expect(response.text).toContain('process_cpu_seconds_total');
   });

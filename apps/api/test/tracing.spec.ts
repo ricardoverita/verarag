@@ -61,7 +61,7 @@ describe('trace propagation', () => {
   it('does not trace health probes', async () => {
     exporter.reset();
 
-    await request(app.getHttpServer()).get('/healthz').expect(200);
+    await request(app.getHttpServer()).get('/health/live').expect(200);
 
     expect(exporter.getFinishedSpans()).toHaveLength(0);
   });

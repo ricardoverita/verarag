@@ -1,7 +1,10 @@
 import type { ComponentName, ComponentStatus, SystemStatus } from '@verarag/contracts';
 
 export type StatusResult =
-  { reachable: true; status: SystemStatus } | { reachable: false; reason: string };
+  | { kind: 'ok'; status: SystemStatus }
+  /** The API answered, but the details need a signed-in user. */
+  | { kind: 'restricted' }
+  | { kind: 'unreachable'; reason: string };
 
 export type HealthState = 'healthy' | 'unavailable' | 'unknown';
 
@@ -35,18 +38,21 @@ export async function fetchSystemStatus(
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),
     });
+    if (response.status === 401) {
+      return { kind: 'restricted' };
+    }
     if (!response.ok) {
-      return { reachable: false, reason: `the API answered with HTTP ${response.status}` };
+      return { kind: 'unreachable', reason: `the API answered with HTTP ${response.status}` };
     }
     const body: unknown = await response.json();
     if (!isSystemStatus(body)) {
-      return { reachable: false, reason: 'the API sent an unexpected response' };
+      return { kind: 'unreachable', reason: 'the API sent an unexpected response' };
     }
-    return { reachable: true, status: body };
+    return { kind: 'ok', status: body };
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === 'TimeoutError';
     return {
-      reachable: false,
+      kind: 'unreachable',
       reason: timedOut ? `no answer after ${timeoutMs} ms` : 'the API is not reachable',
     };
   }
@@ -54,18 +60,27 @@ export async function fetchSystemStatus(
 
 /** Turns the API response into the rows shown on the page, in a fixed order. */
 export function toComponentViews(result: StatusResult): ComponentView[] {
-  const api: ComponentView = result.reachable
-    ? { key: 'api', label: 'API', state: 'healthy', detail: `version ${result.status.version}` }
-    : { key: 'api', label: 'API', state: 'unavailable', detail: result.reason };
+  const api: ComponentView =
+    result.kind === 'unreachable'
+      ? { key: 'api', label: 'API', state: 'unavailable', detail: result.reason }
+      : {
+          key: 'api',
+          label: 'API',
+          state: 'healthy',
+          detail: result.kind === 'ok' ? `version ${result.status.version}` : 'answering',
+        };
 
   const components = ORDER.map((name): ComponentView => {
-    if (!result.reachable) {
+    if (result.kind === 'unreachable') {
       return {
         key: name,
         label: LABELS[name],
         state: 'unknown',
         detail: 'unknown while the API is down',
       };
+    }
+    if (result.kind === 'restricted') {
+      return { key: name, label: LABELS[name], state: 'unknown', detail: 'sign in to see details' };
     }
     const component = result.status.components.find((item) => item.name === name);
     if (!component) {

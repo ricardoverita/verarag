@@ -43,10 +43,6 @@ retry() {
   done
 }
 
-system_is_healthy() {
-  curl -fsS "$API_URL/api/v1/system/status" | jq -e '.status == "ok"' >/dev/null 2>&1
-}
-
 worker_log_line() {
   docker compose logs --no-log-prefix worker 2>/dev/null |
     jq -cR --arg id "$1" 'fromjson? | select(.msg == "system test event received" and .event_id == $id)'
@@ -57,16 +53,32 @@ worker_logged() {
 }
 
 step "API readiness ($API_URL)"
-retry "the API is not ready" curl -fsS -o /dev/null "$API_URL/readyz"
+retry "the API is not ready" curl -fsS -o /dev/null "$API_URL/health/ready"
 echo "    ready"
 
+step "Sign-in"
+cookies=$(mktemp)
+trap 'rm -f "$cookies"' EXIT
+smoke_email="smoke-$(date +%s)-$RANDOM@example.com"
+curl -fsS -o /dev/null -c "$cookies" -X POST "$API_URL/api/v1/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$smoke_email\", \"password\": \"smoke test password\", \"displayName\": \"Smoke Test\", \"organizationName\": \"Smoke Test\"}" ||
+  fail "could not register a user"
+echo "    registered $smoke_email"
+
 step "System status"
+system_is_healthy() {
+  curl -fsS -b "$cookies" "$API_URL/api/v1/system/status" | jq -e '.status == "ok"' >/dev/null 2>&1
+}
 retry "not every component is healthy" system_is_healthy
-curl -fsS "$API_URL/api/v1/system/status" |
+curl -fsS -b "$cookies" "$API_URL/api/v1/system/status" |
   jq -r '.components[] | "    \(.name): \(.status) \(.details // {} | tostring)"'
+status_code=$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/api/v1/system/status")
+[[ "$status_code" == "401" ]] || fail "the system status answered $status_code without a session"
+echo "    without a session: 401"
 
 step "Web app ($WEB_URL)"
-curl -fsS -o /dev/null "$WEB_URL/healthz" || fail "the web app health endpoint does not answer"
+curl -fsS -o /dev/null "$WEB_URL/health/live" || fail "the web app health endpoint does not answer"
 page=$(curl -fsS "$WEB_URL/") || fail "the home page does not answer"
 grep -q "System status" <<<"$page" || fail "the home page did not render the status panel"
 echo "    home page rendered"

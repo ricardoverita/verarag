@@ -59,9 +59,13 @@ describe('loadConfig', () => {
     expect(config.nats.servers).toEqual(['nats://nats-1:4222', 'nats://nats-2:4222']);
   });
 
-  it('only enables the development endpoints explicitly', () => {
-    expect(loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'true' }).devEndpointsEnabled).toBe(
-      true,
+  it('only enables the development endpoints explicitly, and never in production', () => {
+    expect(
+      loadConfig({ ...baseEnv, APP_ENV: 'development', DEV_ENDPOINTS_ENABLED: 'true' })
+        .devEndpointsEnabled,
+    ).toBe(true);
+    expect(() => loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'true' })).toThrow(
+      /DEV_ENDPOINTS_ENABLED cannot be true when APP_ENV=production/,
     );
     expect(() => loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'maybe' })).toThrow(
       /DEV_ENDPOINTS_ENABLED/,

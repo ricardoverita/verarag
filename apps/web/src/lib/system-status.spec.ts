@@ -23,7 +23,7 @@ describe('fetchSystemStatus', () => {
 
     const result = await fetchSystemStatus('http://api:3001', { fetchFn });
 
-    expect(result).toEqual({ reachable: true, status: healthy });
+    expect(result).toEqual({ kind: 'ok', status: healthy });
     expect(fetchFn.mock.calls[0]?.[0]).toEqual(new URL('http://api:3001/api/v1/system/status'));
   });
 
@@ -31,7 +31,7 @@ describe('fetchSystemStatus', () => {
     const fetchFn = respondWith(new Response('busy', { status: 503 }));
 
     await expect(fetchSystemStatus('http://api:3001', { fetchFn })).resolves.toEqual({
-      reachable: false,
+      kind: 'unreachable',
       reason: 'the API answered with HTTP 503',
     });
   });
@@ -40,7 +40,7 @@ describe('fetchSystemStatus', () => {
     const fetchFn = respondWith(Response.json({ hello: 'world' }));
 
     await expect(fetchSystemStatus('http://api:3001', { fetchFn })).resolves.toMatchObject({
-      reachable: false,
+      kind: 'unreachable',
       reason: 'the API sent an unexpected response',
     });
   });
@@ -49,7 +49,7 @@ describe('fetchSystemStatus', () => {
     const fetchFn = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('fetch failed'));
 
     await expect(fetchSystemStatus('http://api:3001', { fetchFn })).resolves.toEqual({
-      reachable: false,
+      kind: 'unreachable',
       reason: 'the API is not reachable',
     });
   });
@@ -65,14 +65,14 @@ describe('fetchSystemStatus', () => {
     );
 
     await expect(fetchSystemStatus('http://api:3001', { fetchFn, timeoutMs: 20 })).resolves.toEqual(
-      { reachable: false, reason: 'no answer after 20 ms' },
+      { kind: 'unreachable', reason: 'no answer after 20 ms' },
     );
   });
 });
 
 describe('toComponentViews', () => {
   it('lists the API first and then every component', () => {
-    const views = toComponentViews({ reachable: true, status: healthy });
+    const views = toComponentViews({ kind: 'ok', status: healthy });
 
     expect(views.map((view) => [view.label, view.state, view.detail])).toEqual([
       ['API', 'healthy', 'version 0.1.0'],
@@ -99,9 +99,7 @@ describe('toComponentViews', () => {
       ),
     };
 
-    const worker = toComponentViews({ reachable: true, status }).find(
-      (view) => view.key === 'worker',
-    );
+    const worker = toComponentViews({ kind: 'ok', status }).find((view) => view.key === 'worker');
 
     expect(worker).toMatchObject({
       state: 'unavailable',
@@ -109,8 +107,21 @@ describe('toComponentViews', () => {
     });
   });
 
+  it('shows the API as up but hides the details without a session', async () => {
+    const fetchFn = respondWith(
+      Response.json({ error: { code: 'AUTHENTICATION_REQUIRED' } }, { status: 401 }),
+    );
+    const result = await fetchSystemStatus('http://api:3001', { fetchFn });
+
+    const views = toComponentViews(result);
+
+    expect(result).toEqual({ kind: 'restricted' });
+    expect(views[0]).toMatchObject({ label: 'API', state: 'healthy' });
+    expect(views.slice(1).every((view) => view.state === 'unknown')).toBe(true);
+  });
+
   it('marks everything else as unknown when the API is down', () => {
-    const views = toComponentViews({ reachable: false, reason: 'the API is not reachable' });
+    const views = toComponentViews({ kind: 'unreachable', reason: 'the API is not reachable' });
 
     expect(views[0]).toMatchObject({ label: 'API', state: 'unavailable' });
     expect(views.slice(1).every((view) => view.state === 'unknown')).toBe(true);

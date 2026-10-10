@@ -238,7 +238,7 @@ func healthcheck(getenv func(string) string) int {
 	}
 
 	client := http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get("http://" + net.JoinHostPort(host, port) + "/readyz")
+	resp, err := client.Get("http://" + net.JoinHostPort(host, port) + "/health/ready")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "healthcheck:", err)
 		return 1

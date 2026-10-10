@@ -35,15 +35,33 @@ describe('isSameOrigin', () => {
     expect(isSameOrigin('GET', headers({}))).toBe(true);
   });
 
-  it('requires an Origin that matches the host for unsafe methods', () => {
+  it('requires an Origin that matches the host when the session cookie is sent', () => {
+    const cookie = 'verarag_session=abc';
     expect(
-      isSameOrigin('POST', headers({ origin: 'http://localhost:3000', host: 'localhost:3000' })),
+      isSameOrigin(
+        'POST',
+        headers({ origin: 'http://localhost:3000', host: 'localhost:3000', cookie }),
+      ),
+    ).toBe(true);
+    expect(
+      isSameOrigin(
+        'POST',
+        headers({ origin: 'https://evil.example', host: 'localhost:3000', cookie }),
+      ),
+    ).toBe(false);
+    expect(isSameOrigin('DELETE', headers({ host: 'localhost:3000', cookie }))).toBe(false);
+    expect(isSameOrigin('PATCH', headers({ origin: 'null', host: 'localhost:3000', cookie }))).toBe(
+      false,
+    );
+  });
+
+  it('does not ask for an Origin when no session cookie is sent', () => {
+    expect(
+      isSameOrigin('POST', headers({ host: 'localhost:3000', authorization: 'Bearer vrg_x' })),
     ).toBe(true);
     expect(
       isSameOrigin('POST', headers({ origin: 'https://evil.example', host: 'localhost:3000' })),
-    ).toBe(false);
-    expect(isSameOrigin('DELETE', headers({ host: 'localhost:3000' }))).toBe(false);
-    expect(isSameOrigin('PATCH', headers({ origin: 'null', host: 'localhost:3000' }))).toBe(false);
+    ).toBe(true);
   });
 
   it('uses the forwarded host behind a reverse proxy', () => {
@@ -54,6 +72,7 @@ describe('isSameOrigin', () => {
           origin: 'https://verarag.example',
           host: 'web:3000',
           'x-forwarded-host': 'verarag.example',
+          cookie: '__Host-verarag_session=abc',
         }),
       ),
     ).toBe(true);

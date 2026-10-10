@@ -7,11 +7,33 @@
 /** Both names the API may use, depending on whether cookies are Secure. */
 export const SESSION_COOKIE_NAMES = ['__Host-verarag_session', 'verarag_session'] as const;
 
-/** Request headers passed on to the API. Everything else stays here. */
-const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type', 'x-forwarded-for', 'traceparent'];
+/**
+ * Request headers passed on to the API. Everything else stays here.
+ * Content-Length lets the API refuse an oversized upload before reading it.
+ */
+const FORWARDED_REQUEST_HEADERS = [
+  'accept',
+  'content-type',
+  'content-length',
+  'x-forwarded-for',
+  'traceparent',
+];
 
-/** Response headers passed back to the browser, besides Set-Cookie. */
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'retry-after', 'x-request-id'];
+/**
+ * Response headers passed back to the browser, besides Set-Cookie. They
+ * include the ones that make a document download an attachment that is
+ * never rendered.
+ */
+const FORWARDED_RESPONSE_HEADERS = [
+  'content-type',
+  'content-length',
+  'content-disposition',
+  'content-security-policy',
+  'x-content-type-options',
+  'cross-origin-resource-policy',
+  'retry-after',
+  'x-request-id',
+];
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -32,9 +54,14 @@ export function upstreamUrl(apiUrl: string, segments: string[], search: string):
  * Cross-site request forgery check, the same one Next.js applies to Server
  * Actions: a browser always sends Origin with POST, PATCH and DELETE, and it
  * must be the host the request was sent to.
+ *
+ * Only requests that carry the session cookie need it: that cookie is what
+ * a forged request would borrow. Programs calling with an API key and no
+ * cookie send no Origin, and cannot be forged by another site.
  */
 export function isSameOrigin(method: string, headers: Headers): boolean {
   if (SAFE_METHODS.has(method)) return true;
+  if (!sessionCookieHeader(headers.get('cookie'))) return true;
   const origin = headers.get('origin');
   const host = headers.get('x-forwarded-host') ?? headers.get('host');
   if (!origin || !host) return false;

@@ -16,6 +16,11 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(login);
 }
 
+/**
+ * Never add /api here: Next.js buffers the body of every request that goes
+ * through proxy.ts (up to 10 MB, then it truncates), which would break the
+ * streaming of document uploads through /api/v1.
+ */
 export const config = {
-  matcher: ['/dashboard', '/settings/:path*', '/organizations/:path*'],
+  matcher: ['/dashboard', '/settings/:path*', '/organizations/:path*', '/collections/:path*'],
 };

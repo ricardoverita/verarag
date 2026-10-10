@@ -64,11 +64,20 @@ export class CollectionsService {
     );
   }
 
+  /**
+   * Deletes a collection that has no documents left. Documents are never
+   * deleted along with it: each one has to go through its own deletion,
+   * which removes its stored file. The lock taken here serializes with
+   * uploads, which hold a share lock on the collection while they add a row.
+   */
   async delete(context: ActionContext, id: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       const key = { id, organizationId: context.organizationId };
       if (!(await this.collections.find(tx, key, { lock: 'update' }))) {
         throw new AppError('COLLECTION_NOT_FOUND');
+      }
+      if (await this.collections.hasDocuments(tx, key)) {
+        throw new AppError('COLLECTION_NOT_EMPTY');
       }
       await this.collections.softDelete(tx, key);
       await this.record(tx, context, 'COLLECTION_DELETED', id, {});

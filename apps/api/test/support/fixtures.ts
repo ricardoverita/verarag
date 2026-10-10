@@ -9,6 +9,8 @@ export interface Person {
   password: string;
   /** The organization created on registration, where the person is OWNER. */
   organizationId: string;
+  /** The session cookie, for requests made without the client. */
+  cookie: string;
 }
 
 /** Registers a person through the API; their client keeps the session cookie. */
@@ -26,6 +28,7 @@ export async function signUp(
     email: account.email,
     password: account.password,
     organizationId: body.organization.id,
+    cookie: (response.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!,
   };
 }
 

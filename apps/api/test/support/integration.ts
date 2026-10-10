@@ -13,13 +13,22 @@ export interface IntegrationContext {
   close(): Promise<void>;
 }
 
-/** The full API on a fresh PostgreSQL database; NATS and S3 stay faked. */
+export interface IntegrationOptions extends Omit<TestAppOptions, 'databaseUrl' | 'fakes'> {
+  /** Reuse another app's database, to run two API instances side by side. */
+  database?: TestDatabase;
+}
+
+/**
+ * The full API on a fresh PostgreSQL database. NATS stays faked; S3 is faked
+ * unless `realStorage` is set, with `config.storage` pointing at a bucket.
+ */
 export async function startIntegrationApp(
-  options: Omit<TestAppOptions, 'databaseUrl' | 'fakes'> = {},
+  options: IntegrationOptions = {},
 ): Promise<IntegrationContext> {
-  const db = await createTestDatabase();
+  const { database, ...appOptions } = options;
+  const db = database ?? (await createTestDatabase());
   const fakes = createFakes();
-  const app = await createTestApp({ ...options, fakes, databaseUrl: db.url });
+  const app = await createTestApp({ ...appOptions, fakes, databaseUrl: db.url });
   return {
     app,
     db,
@@ -27,9 +36,14 @@ export async function startIntegrationApp(
     client: () => request.agent(app.getHttpServer()).set('x-forwarded-for', nextClientIp()),
     async close() {
       await app.close();
-      await db.drop();
+      if (!database) await db.drop();
     },
   };
+}
+
+/** A fresh client address, for requests made without supertest. */
+export function clientIp(): string {
+  return nextClientIp();
 }
 
 export type TestAgent = ReturnType<typeof request.agent>;

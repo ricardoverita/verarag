@@ -9,6 +9,7 @@ export interface CollectionRecord {
   organizationId: string;
   name: string;
   description: string | null;
+  documentCount: number;
   createdBy: ActorView;
   createdAt: Date;
   updatedAt: Date;
@@ -19,13 +20,16 @@ interface CollectionRow extends ActorRow {
   organization_id: string;
   name: string;
   description: string | null;
+  document_count: number;
   created_at: Date;
   updated_at: Date;
 }
 
 const actor = actorSql('c');
 const COLUMNS = `c.id, c.organization_id, c.name, c.description, c.created_at, c.updated_at,
-  ${actor.columns}`;
+  ${actor.columns},
+  (SELECT count(*)::int FROM documents d
+   WHERE d.collection_id = c.id AND d.deleted_at IS NULL) AS document_count`;
 
 export type CollectionKey = { id: string; organizationId: string };
 
@@ -109,6 +113,17 @@ export class CollectionsRepository {
     );
   }
 
+  /** Whether any document of the collection is not deleted yet, whatever its status. */
+  async hasDocuments(db: Queryable, key: CollectionKey): Promise<boolean> {
+    const { rows } = await db.query(
+      `SELECT 1 FROM documents
+       WHERE collection_id = $1 AND organization_id = $2 AND deleted_at IS NULL
+       LIMIT 1`,
+      [key.id, key.organizationId],
+    );
+    return rows.length > 0;
+  }
+
   async softDelete(db: Queryable, key: CollectionKey): Promise<void> {
     await db.query(
       'UPDATE collections SET deleted_at = now() WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
@@ -130,6 +145,7 @@ function toRecord(row: CollectionRow): CollectionRecord {
     organizationId: row.organization_id,
     name: row.name,
     description: row.description,
+    documentCount: row.document_count,
     createdBy: toActorView(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

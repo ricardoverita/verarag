@@ -29,6 +29,7 @@ describe('loadConfig', () => {
     });
     expect(config.invitations).toEqual({ ttlHours: 168 });
     expect(config.openApi).toEqual({ enabled: false });
+    expect(config.documents).toEqual({ maxSizeBytes: 25 * 1024 * 1024 });
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',

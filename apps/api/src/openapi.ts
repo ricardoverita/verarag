@@ -1,5 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 
 import { API_KEY_SECURITY, SESSION_SECURITY } from './auth/auth.decorators.js';
 import { apiErrorResponse } from './common/api-error.schema.js';
@@ -41,8 +41,28 @@ export function setupOpenApi(app: NestExpressApplication, config: Config): void 
     })
     .build();
 
-  SwaggerModule.setup(OPENAPI_PATH, app, () => SwaggerModule.createDocument(app, options), {
+  const build = () =>
+    withUploadLimit(SwaggerModule.createDocument(app, options), config.documents.maxSizeBytes);
+  SwaggerModule.setup(OPENAPI_PATH, app, build, {
     jsonDocumentUrl: `${OPENAPI_PATH}/openapi.json`,
     raw: ['json'],
   });
+}
+
+/**
+ * Writes the configured maximum size into every multipart upload, so the
+ * document states the limit that is actually enforced.
+ */
+function withUploadLimit(document: OpenAPIObject, maxSizeBytes: number): OpenAPIObject {
+  for (const item of Object.values(document.paths)) {
+    for (const operation of [item.post, item.put]) {
+      if (operation?.requestBody && 'content' in operation.requestBody) {
+        if ('multipart/form-data' in operation.requestBody.content) {
+          const limit = `Files can be at most ${maxSizeBytes} bytes (DOCUMENT_MAX_SIZE_BYTES).`;
+          operation.description = [operation.description, limit].filter(Boolean).join(' ');
+        }
+      }
+    }
+  }
+  return document;
 }

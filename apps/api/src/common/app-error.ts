@@ -44,6 +44,13 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   INSUFFICIENT_SCOPE: 'This API key is not allowed to call this endpoint.',
   COLLECTION_NOT_FOUND: 'The collection does not exist in this organization.',
   COLLECTION_NAME_TAKEN: 'Another collection in this organization already has this name.',
+  COLLECTION_NOT_EMPTY: 'The collection still has documents. Delete them first.',
+  DOCUMENT_NOT_FOUND: 'The document does not exist in this organization.',
+  INVALID_UPLOAD: 'Send exactly one file, as multipart/form-data in a field named "file".',
+  DOCUMENT_TOO_LARGE: 'The file is larger than the maximum size allowed.',
+  DOCUMENT_TYPE_NOT_ALLOWED:
+    'This type of file is not supported. Upload PDF, DOCX, Markdown, plain text or HTML.',
+  DOCUMENT_UPLOAD_FAILED: 'The file could not be stored. Try again later.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

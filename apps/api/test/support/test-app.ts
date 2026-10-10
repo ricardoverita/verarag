@@ -23,6 +23,7 @@ export const testConfig: Config = {
   sessions: { ttlHours: 168, cookieSecure: false, cookieName: 'verarag_session' },
   invitations: { ttlHours: 168 },
   openApi: { enabled: true },
+  documents: { maxSizeBytes: 25 * 1024 * 1024 },
 };
 
 export const workerHeartbeat = {

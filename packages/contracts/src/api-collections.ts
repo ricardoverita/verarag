@@ -11,6 +11,8 @@ export interface CollectionView {
   id: string;
   name: string;
   description: string | null;
+  /** Documents in the collection that are not deleted, whatever their status. */
+  documentCount: number;
   createdBy: ActorView;
   createdAt: string;
   updatedAt: string;

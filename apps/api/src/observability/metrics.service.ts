@@ -59,6 +59,19 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly documentUploads = new Counter({
+    name: 'verarag_document_uploads_total',
+    help: 'Document uploads by result: stored, rejected (the file or request was not acceptable) or failed (storage or the connection failed).',
+    labelNames: ['result'] as const,
+    registers: [this.registry],
+  });
+
+  readonly documentUploadBytes = new Counter({
+    name: 'verarag_document_upload_bytes_total',
+    help: 'Bytes of documents stored.',
+    registers: [this.registry],
+  });
+
   readonly storageOperationDuration = new Histogram({
     name: 'verarag_storage_operation_duration_seconds',
     help: 'Duration of object storage calls, by operation (put, get, head, delete) and outcome.',

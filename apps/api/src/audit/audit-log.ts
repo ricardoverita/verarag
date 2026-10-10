@@ -17,10 +17,18 @@ export type AuditAction =
   | 'API_KEY_REVOKED'
   | 'COLLECTION_CREATED'
   | 'COLLECTION_UPDATED'
-  | 'COLLECTION_DELETED';
+  | 'COLLECTION_DELETED'
+  | 'DOCUMENT_UPLOADED';
 
 export type AuditResourceType =
-  'user' | 'session' | 'organization' | 'membership' | 'invitation' | 'api_key' | 'collection';
+  | 'user'
+  | 'session'
+  | 'organization'
+  | 'membership'
+  | 'invitation'
+  | 'api_key'
+  | 'collection'
+  | 'document';
 
 export interface AuditEvent {
   action: AuditAction;

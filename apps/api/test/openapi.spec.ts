@@ -81,6 +81,30 @@ describe('OpenAPI', () => {
     expect(error.properties?.error?.required).toEqual(['code', 'message']);
   });
 
+  it('documents the multipart upload with the configured size limit and the supported types', async () => {
+    const { paths } = await fetchDocument();
+    const upload = paths[
+      '/api/v1/organizations/{organizationId}/collections/{collectionId}/documents'
+    ]!.post as Operation & {
+      description?: string;
+      requestBody: {
+        content: Record<
+          string,
+          {
+            schema: Schema & {
+              properties: Record<string, { format?: string; description?: string }>;
+            };
+          }
+        >;
+      };
+    };
+
+    const form = upload.requestBody.content['multipart/form-data']!.schema;
+    expect(form.properties.file?.format).toBe('binary');
+    expect(form.properties.file?.description).toContain('application/pdf (.pdf)');
+    expect(upload.description).toContain(`${25 * 1024 * 1024} bytes`);
+  });
+
   it('contains no secrets or examples that look like them', async () => {
     const document = JSON.stringify(await fetchDocument());
 

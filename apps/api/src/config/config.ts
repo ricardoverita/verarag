@@ -50,6 +50,17 @@ const envSchema = z.object({
     .default(7 * 24),
   /** Defaults to true in production, where it cannot be turned off. */
   SESSION_COOKIE_SECURE: optional(z.stringbool()),
+  /**
+   * Largest document accepted, enforced while the upload streams. 25 MiB by
+   * default: enough for most manuals and contracts, and small enough that a
+   * mistaken upload fails fast.
+   */
+  DOCUMENT_MAX_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(2 * 1024 ** 3)
+    .default(25 * 1024 ** 2),
   /** Serves /api/docs. Defaults to on outside production and off in production. */
   OPENAPI_ENABLED: optional(z.stringbool()),
   INVITATION_TTL_HOURS: z.coerce
@@ -92,6 +103,7 @@ export interface Config {
     cookieName: string;
   };
   invitations: { ttlHours: number };
+  documents: { maxSizeBytes: number };
   /** Interactive documentation at /api/docs and the document at /api/docs/openapi.json. */
   openApi: { enabled: boolean };
 }
@@ -156,6 +168,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       cookieName: cookieSecure ? '__Host-verarag_session' : 'verarag_session',
     },
     invitations: { ttlHours: vars.INVITATION_TTL_HOURS },
+    documents: { maxSizeBytes: vars.DOCUMENT_MAX_SIZE_BYTES },
     openApi: { enabled: vars.OPENAPI_ENABLED ?? !production },
   };
 }

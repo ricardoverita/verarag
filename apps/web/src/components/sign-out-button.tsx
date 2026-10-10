@@ -6,7 +6,8 @@ import { useTransition } from 'react';
 import ui from '@/components/ui.module.css';
 import { callApi } from '@/lib/client-api';
 
-export function SignOutButton() {
+/** Signs out and goes to `redirectTo`, the sign-in page by default. */
+export function SignOutButton({ redirectTo = '/login' }: { redirectTo?: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -19,7 +20,7 @@ export function SignOutButton() {
         startTransition(async () => {
           // The API clears the cookie even if the session was already gone.
           await callApi('/api/v1/auth/logout', { method: 'POST' });
-          router.replace('/login');
+          router.replace(redirectTo);
           router.refresh();
         })
       }

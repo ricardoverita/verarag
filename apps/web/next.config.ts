@@ -24,7 +24,18 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   headers() {
-    return Promise.resolve([{ source: '/:path*', headers: securityHeaders }]);
+    return Promise.resolve([
+      { source: '/:path*', headers: securityHeaders },
+      // Invitation links carry their token in the path: never send it on as a
+      // Referer, and keep the pages out of search engines.
+      {
+        source: '/invitations/:path*',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'X-Robots-Tag', value: 'noindex' },
+        ],
+      },
+    ]);
   },
 };
 

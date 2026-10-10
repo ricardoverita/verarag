@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { SignOutButton } from '@/components/sign-out-button';
 import ui from '@/components/ui.module.css';
 import { canManage } from '@/lib/organizations';
 import { currentMembership, requireSession } from '@/lib/session';
@@ -7,7 +8,6 @@ import { currentMembership, requireSession } from '@/lib/session';
 import styles from './app.module.css';
 import { NavLinks } from './nav-links';
 import { OrganizationSwitcher } from './organization-switcher';
-import { SignOutButton } from './sign-out-button';
 
 export async function AppHeader() {
   const session = await requireSession();

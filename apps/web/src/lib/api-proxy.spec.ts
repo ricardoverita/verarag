@@ -79,7 +79,7 @@ describe('forwardRequestHeaders', () => {
         'content-type': 'application/json',
         cookie: 'verarag_session=abc; other=1',
         origin: 'http://localhost:3000',
-        authorization: 'Bearer something',
+        host: 'localhost:3000',
         'x-forwarded-for': '203.0.113.7',
       }),
     );
@@ -90,6 +90,17 @@ describe('forwardRequestHeaders', () => {
       cookie: 'verarag_session=abc',
       'x-forwarded-for': '203.0.113.7',
     });
+  });
+
+  it('passes on bearer API keys but no other credentials', () => {
+    expect(
+      forwardRequestHeaders(new Headers({ authorization: 'Bearer vrg_key' })).get('authorization'),
+    ).toBe('Bearer vrg_key');
+    expect(
+      forwardRequestHeaders(new Headers({ authorization: 'Basic dXNlcjpwYXNz' })).get(
+        'authorization',
+      ),
+    ).toBeNull();
   });
 });
 

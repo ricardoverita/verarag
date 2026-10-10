@@ -64,6 +64,12 @@ export function forwardRequestHeaders(incoming: Headers): Headers {
   }
   const cookie = sessionCookieHeader(incoming.get('cookie'));
   if (cookie) headers.set('cookie', cookie);
+  // API keys, so programs can use the web app's public URL. Browsers never
+  // attach this header on their own, so it does not open a CSRF path.
+  const authorization = incoming.get('authorization');
+  if (authorization && /^bearer\s/i.test(authorization)) {
+    headers.set('authorization', authorization);
+  }
   return headers;
 }
 

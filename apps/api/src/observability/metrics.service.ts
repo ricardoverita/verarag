@@ -72,6 +72,20 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly documentDownloads = new Counter({
+    name: 'verarag_document_downloads_total',
+    help: 'Document downloads by result: sent, not_available (not stored or being deleted) or storage_error.',
+    labelNames: ['result'] as const,
+    registers: [this.registry],
+  });
+
+  readonly documentDeletes = new Counter({
+    name: 'verarag_document_deletes_total',
+    help: 'Document deletions by result: deleted, or failed (storage did not answer; the document stays DELETING).',
+    labelNames: ['result'] as const,
+    registers: [this.registry],
+  });
+
   readonly storageOperationDuration = new Histogram({
     name: 'verarag_storage_operation_duration_seconds',
     help: 'Duration of object storage calls, by operation (put, get, head, delete) and outcome.',

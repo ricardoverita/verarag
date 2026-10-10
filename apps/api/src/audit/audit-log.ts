@@ -18,7 +18,8 @@ export type AuditAction =
   | 'COLLECTION_CREATED'
   | 'COLLECTION_UPDATED'
   | 'COLLECTION_DELETED'
-  | 'DOCUMENT_UPLOADED';
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_DELETED';
 
 export type AuditResourceType =
   | 'user'

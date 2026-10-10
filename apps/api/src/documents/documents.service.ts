@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http';
+import type { Readable } from 'node:stream';
 
 import { Inject, Injectable } from '@nestjs/common';
 import type { DocumentFailureReason } from '@verarag/contracts';
@@ -11,7 +12,7 @@ import { AppError } from '../common/app-error.js';
 import { CONFIG, type Config } from '../config/config.js';
 import { Database } from '../database/database.js';
 import { MetricsService } from '../observability/metrics.service.js';
-import { ObjectStorage, StorageError } from '../storage/object-storage.js';
+import { ObjectStorage, StorageError, type StoredObject } from '../storage/object-storage.js';
 import { inspectContent } from './content-inspector.js';
 import {
   checkSignature,
@@ -190,6 +191,97 @@ export class DocumentsService {
       throw new AppError('DOCUMENT_NOT_FOUND');
     }
     return document;
+  }
+
+  /**
+   * The content of an AVAILABLE document, as a stream straight from storage.
+   * Nothing is read into memory; the caller pipes it to the response.
+   */
+  async openContent(
+    organizationId: string,
+    id: string,
+  ): Promise<{ document: DocumentRecord & { sizeBytes: number }; body: Readable }> {
+    const document = await this.get(organizationId, id);
+    if (document.status !== 'AVAILABLE' || document.sizeBytes === null) {
+      this.metrics.documentDownloads.inc({ result: 'not_available' });
+      throw new AppError('DOCUMENT_NOT_AVAILABLE');
+    }
+    let object: StoredObject;
+    try {
+      object = await this.storage.get(document.objectKey);
+    } catch (error) {
+      this.metrics.documentDownloads.inc({ result: 'storage_error' });
+      if (error instanceof StorageError && error.notFound) {
+        // AVAILABLE without an object: the two stores disagree.
+        this.logger.error({ documentId: id }, 'stored object is missing');
+        throw new AppError('DOCUMENT_NOT_AVAILABLE');
+      }
+      this.logger.warn({ documentId: id, err: describe(error) }, 'document download failed');
+      throw new AppError('STORAGE_UNAVAILABLE');
+    }
+    if (object.size !== undefined && object.size !== document.sizeBytes) {
+      object.body.destroy();
+      this.metrics.documentDownloads.inc({ result: 'storage_error' });
+      this.logger.error(
+        { documentId: id, expected: document.sizeBytes, stored: object.size },
+        'stored object has the wrong size',
+      );
+      throw new AppError('DOCUMENT_NOT_AVAILABLE');
+    }
+    this.metrics.documentDownloads.inc({ result: 'sent' });
+    return { document: { ...document, sizeBytes: document.sizeBytes }, body: object.body };
+  }
+
+  /**
+   * Deletes a document in two steps, because PostgreSQL and storage cannot
+   * change together:
+   *
+   * 1. The row becomes DELETING. From then on it cannot be downloaded, and
+   *    the deletion is recorded in the audit log.
+   * 2. The object is deleted. Only then does the row become DELETED.
+   *
+   * If storage fails, the row stays DELETING and the error is returned:
+   * calling delete again resumes at step 2. Deleting a DELETED document
+   * succeeds without doing anything, so retries are safe.
+   */
+  async delete(context: ActionContext, id: string): Promise<void> {
+    const key = { id, organizationId: context.organizationId };
+    const document = await this.db.transaction(async (tx) => {
+      const found = await this.documents.findForUpdate(tx, key);
+      if (!found) {
+        throw new AppError('DOCUMENT_NOT_FOUND');
+      }
+      if (found.status === 'DELETED' || found.status === 'DELETING') {
+        return found;
+      }
+      await this.documents.markDeleting(tx, key);
+      await this.audit.record(tx, {
+        action: 'DOCUMENT_DELETED',
+        organizationId: context.organizationId,
+        ...auditActor(context.actor),
+        resourceType: 'document',
+        resourceId: id,
+        metadata: {
+          collection: found.collectionId,
+          previousStatus: found.status,
+          requestId: context.requestId ?? null,
+        },
+      });
+      return found;
+    });
+    if (document.status === 'DELETED') return;
+
+    try {
+      // Deleting a missing object succeeds, so FAILED uploads and retries are fine.
+      await this.storage.delete(document.objectKey);
+    } catch (error) {
+      this.metrics.documentDeletes.inc({ result: 'failed' });
+      this.logger.warn({ documentId: id, err: describe(error) }, 'document deletion failed');
+      throw new AppError('DOCUMENT_DELETE_FAILED');
+    }
+    await this.documents.markDeleted(this.db, key);
+    this.metrics.documentDeletes.inc({ result: 'deleted' });
+    this.logger.info({ documentId: id }, 'document deleted');
   }
 
   /** Best-effort removal of a partial or orphaned object; a failure is only logged. */

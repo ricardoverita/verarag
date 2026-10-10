@@ -57,7 +57,7 @@ export function receiveFile(request: IncomingMessage, maxFileBytes: number): Pro
         truncated = true;
       });
       resolve({
-        filename: info.filename ?? '',
+        filename: decodeFormFilename(info.filename ?? ''),
         declaredType: info.mimeType ?? '',
         stream,
         truncated: () => truncated,
@@ -80,6 +80,15 @@ export function receiveFile(request: IncomingMessage, maxFileBytes: number): Pro
     });
     request.pipe(parser);
   });
+}
+
+/**
+ * Browsers encode three characters in multipart file names, as the HTML
+ * standard says: `"` as %22, CR as %0D and LF as %0A. Only the quote is
+ * turned back; line breaks would be removed as control characters anyway.
+ */
+export function decodeFormFilename(filename: string): string {
+  return filename.replaceAll('%22', '"').replaceAll('%0D', '').replaceAll('%0A', '');
 }
 
 /**

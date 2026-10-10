@@ -1,6 +1,10 @@
+import { pipeline } from 'node:stream';
+
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
   HttpStatus,
   Inject,
   Param,
@@ -10,9 +14,17 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ApiBody, ApiConsumes, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiParam,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { DocumentsResponse, DocumentView, UploadPolicy } from '@verarag/contracts';
 import type { Request, Response } from 'express';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { collectionIdParam } from '../collections/collections.dto.js';
 import type { ActionContext } from '../common/actor.js';
@@ -35,6 +47,7 @@ import {
   uploadPolicy,
 } from './documents.dto.js';
 import { DocumentsService } from './documents.service.js';
+import { downloadHeaders } from './download-headers.js';
 import { FILE_FIELD } from './multipart.js';
 
 const SUPPORTED = DOCUMENT_TYPES.map(
@@ -101,7 +114,10 @@ export class CollectionDocumentsController {
 @UseGuards(OrganizationAccessGuard)
 @ApiParam({ name: 'organizationId', format: 'uuid' })
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    @InjectPinoLogger(DocumentsController.name) private readonly logger: PinoLogger,
+  ) {}
 
   @Get(':documentId')
   @ResponseSchema(documentView)
@@ -110,6 +126,49 @@ export class DocumentsController {
     @Param('documentId', { schema: documentIdParam }) documentId: string,
   ): Promise<DocumentView> {
     return toDocumentView(await this.documents.get(access.organizationId, documentId));
+  }
+
+  /**
+   * The document's bytes, streamed from storage, always as an attachment.
+   * Only AVAILABLE documents can be downloaded.
+   */
+  @Get(':documentId/content')
+  @ApiProduces('application/octet-stream')
+  @ApiOkResponse({
+    description: 'The file, as an attachment.',
+    content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
+  })
+  async content(
+    @CurrentAccess() access: OrganizationAccess,
+    @Param('documentId', { schema: documentIdParam }) documentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { document, body } = await this.documents.openContent(access.organizationId, documentId);
+    res.status(HttpStatus.OK).set(downloadHeaders(document));
+    pipeline(body, res, (error) => {
+      if (error) {
+        // Headers are gone already: all that is left is to cut the response.
+        this.logger.warn(
+          { documentId, err: { name: error.name } },
+          'document download interrupted',
+        );
+      }
+    });
+  }
+
+  /**
+   * Deletes the document and its stored file. Safe to repeat: a 503 leaves
+   * the document DELETING, and calling again finishes the job.
+   */
+  @Delete(':documentId')
+  @OrganizationRoles('OWNER', 'ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async delete(
+    @CurrentAccess() access: OrganizationAccess,
+    @Param('documentId', { schema: documentIdParam }) documentId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    await this.documents.delete(contextOf(access, req), documentId);
   }
 }
 

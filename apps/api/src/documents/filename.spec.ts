@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { sanitizeFilename } from './filename.js';
+import { decodeFormFilename } from './multipart.js';
 
 describe('sanitizeFilename', () => {
   it('keeps ordinary names, including non-ASCII ones', () => {
@@ -31,5 +32,12 @@ describe('sanitizeFilename', () => {
 
     expect([...name]).toHaveLength(255);
     expect(name.endsWith('.pdf')).toBe(true);
+  });
+});
+
+describe('decodeFormFilename', () => {
+  it('turns back the quotes browsers encode in multipart file names', () => {
+    expect(decodeFormFilename('Report %22final%22.pdf')).toBe('Report "final".pdf');
+    expect(decodeFormFilename('a%0D%0Ab.txt')).toBe('ab.txt');
   });
 });

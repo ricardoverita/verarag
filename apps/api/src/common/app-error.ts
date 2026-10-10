@@ -51,6 +51,11 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   DOCUMENT_TYPE_NOT_ALLOWED:
     'This type of file is not supported. Upload PDF, DOCX, Markdown, plain text or HTML.',
   DOCUMENT_UPLOAD_FAILED: 'The file could not be stored. Try again later.',
+  DOCUMENT_NOT_AVAILABLE:
+    'The document cannot be downloaded: it is not stored, or it is being deleted.',
+  DOCUMENT_DELETE_FAILED:
+    'The document could not be deleted from storage yet. It stays marked for deletion; try again later.',
+  STORAGE_UNAVAILABLE: 'Document storage is not available right now. Try again later.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

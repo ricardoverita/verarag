@@ -112,6 +112,38 @@ export class DocumentsRepository {
     );
   }
 
+  /**
+   * Locks the document for a status change, deleted ones included, so
+   * deleting twice can answer the same way.
+   */
+  async findForUpdate(db: Queryable, key: DocumentKey): Promise<DocumentRecord | undefined> {
+    const { rows } = await db.query<DocumentRow>(
+      `SELECT ${COLUMNS} FROM documents d ${actor.joins}
+       WHERE d.id = $1 AND d.organization_id = $2
+       FOR UPDATE OF d`,
+      [key.id, key.organizationId],
+    );
+    return rows[0] && toRecord(rows[0]);
+  }
+
+  /** Any status but DELETED -> DELETING. From here the document can no longer be downloaded. */
+  async markDeleting(db: Queryable, key: DocumentKey): Promise<void> {
+    await db.query(
+      `UPDATE documents SET storage_status = 'DELETING'
+       WHERE id = $1 AND organization_id = $2 AND storage_status <> 'DELETED'`,
+      [key.id, key.organizationId],
+    );
+  }
+
+  /** DELETING -> DELETED, once the object is gone from storage. */
+  async markDeleted(db: Queryable, key: DocumentKey): Promise<void> {
+    await db.query(
+      `UPDATE documents SET storage_status = 'DELETED', deleted_at = now()
+       WHERE id = $1 AND organization_id = $2 AND storage_status = 'DELETING'`,
+      [key.id, key.organizationId],
+    );
+  }
+
   /** Documents of a collection that are not deleted, newest first. */
   async listByCollection(
     db: Queryable,
@@ -126,7 +158,7 @@ export class DocumentsRepository {
     return rows.map(toRecord);
   }
 
-  /** A document that is not deleted. */
+  /** A document that is not deleted (DELETING ones are still found). */
   async find(db: Queryable, key: DocumentKey): Promise<DocumentRecord | undefined> {
     const { rows } = await db.query<DocumentRow>(
       `SELECT ${COLUMNS} FROM documents d ${actor.joins}

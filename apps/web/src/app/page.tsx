@@ -1,4 +1,8 @@
+import Link from 'next/link';
 import { Suspense } from 'react';
+
+import ui from '@/components/ui.module.css';
+import { getSession } from '@/lib/session';
 
 import { AutoRefresh } from './auto-refresh';
 import styles from './page.module.css';
@@ -20,12 +24,36 @@ const DEV_EVENT_COMMAND = `curl -X POST http://localhost:3001/api/v1/dev/events 
   -H 'Content-Type: application/json' \\
   -d '{"type": "system.test", "message": "hello from VeraRAG"}'`;
 
+async function AccountActions() {
+  const session = await getSession().catch(() => null);
+  if (session) {
+    return (
+      <div className={styles.actions}>
+        <Link href="/dashboard" className={ui.button}>
+          Open dashboard
+        </Link>
+        <span className={styles.signedInAs}>Signed in as {session.user.displayName}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.actions}>
+      <Link href="/register" className={ui.button}>
+        Create an account
+      </Link>
+      <Link href="/login" className={`${ui.button} ${ui.secondary}`}>
+        Sign in
+      </Link>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
         <span className={styles.wordmark}>VeraRAG</span>
-        <span className={styles.phase}>Phase 0 · Foundation</span>
+        <span className={styles.phase}>Phase 1 · Organizations and access</span>
       </header>
 
       <section className={styles.intro}>
@@ -36,15 +64,19 @@ export default function Home() {
           organizations.
         </p>
         <p className={styles.notice}>
-          It is at an early stage. The base architecture runs, but it is not a production RAG
-          platform yet: there is no ingestion, search or chat today.
+          It is at an early stage. You can create an account, organizations and API keys, and invite
+          people, but it is not a production RAG platform yet: there is no ingestion, search or chat
+          today.
         </p>
+        <Suspense fallback={<div className={ui.skeleton} style={{ width: 260, height: 38 }} />}>
+          <AccountActions />
+        </Suspense>
       </section>
 
       <section className={styles.card} aria-labelledby="status-title">
         <h2 id="status-title">System status</h2>
         <Suspense fallback={<SystemStatusPlaceholder />}>
-          <SystemStatusPanel />
+          <SystemStatusPanel refreshSeconds={10} />
         </Suspense>
         <AutoRefresh intervalMs={10_000} />
       </section>

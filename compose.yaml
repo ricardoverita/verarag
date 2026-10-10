@@ -19,7 +19,8 @@ services:
     image: verarag/web:local
     restart: unless-stopped
     environment:
-      # The web app calls the API from its server, never from the browser.
+      # Browsers only talk to the web app; it calls the API from its server,
+      # including for the /api/v1 requests it passes on.
       API_INTERNAL_URL: http://api:3001
     ports:
       - 127.0.0.1:${WEB_PORT:-3000}:3000
@@ -56,6 +57,11 @@ services:
       DEV_ENDPOINTS_ENABLED: ${DEV_ENDPOINTS_ENABLED:-false}
       # Empty means the default: on in development, off in production.
       OPENAPI_ENABLED: ${OPENAPI_ENABLED:-}
+      # Origin allowed for browser requests and base of invitation links.
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT:-3000}}
+      # Browsers reach the API through the web container, on the private
+      # Docker network; its X-Forwarded-For carries the client address.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback, uniquelocal}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports:
       - 127.0.0.1:${API_PORT:-3001}:3001

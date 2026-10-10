@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 
+import { apiUrl, sessionCookie } from '@/lib/server-api';
 import { type ComponentView, fetchSystemStatus, toComponentViews } from '@/lib/system-status';
 
 import styles from './page.module.css';
@@ -10,11 +11,13 @@ const STATE_LABELS: Record<ComponentView['state'], string> = {
   unknown: 'Unknown',
 };
 
-export async function SystemStatusPanel() {
+/** `refreshSeconds` only describes the page's own refresh; the panel does not refresh itself. */
+export async function SystemStatusPanel({ refreshSeconds }: { refreshSeconds?: number } = {}) {
   // Rendered on every request, never at build time.
   await connection();
 
-  const result = await fetchSystemStatus(process.env.API_INTERNAL_URL ?? 'http://localhost:3001');
+  // With a session the API shows every component; without one, only that it answers.
+  const result = await fetchSystemStatus(apiUrl(), { cookie: await sessionCookie() });
   const views = toComponentViews(result);
   const checkedAt =
     result.kind === 'ok'
@@ -29,7 +32,8 @@ export async function SystemStatusPanel() {
         ))}
       </ul>
       <p className={styles.statusFootnote}>
-        {checkedAt ? `Checked at ${checkedAt} UTC. ` : ''}Refreshes every 10 seconds.
+        {checkedAt ? `Checked at ${checkedAt} UTC.` : ''}
+        {refreshSeconds ? ` Refreshes every ${refreshSeconds} seconds.` : ''}
       </p>
     </>
   );

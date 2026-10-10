@@ -30,12 +30,16 @@ const ORDER: ComponentName[] = ['database', 'messaging', 'worker', 'storage'];
  */
 export async function fetchSystemStatus(
   apiUrl: string,
-  { fetchFn = fetch, timeoutMs = 3_000 }: { fetchFn?: typeof fetch; timeoutMs?: number } = {},
+  {
+    fetchFn = fetch,
+    timeoutMs = 3_000,
+    cookie,
+  }: { fetchFn?: typeof fetch; timeoutMs?: number; cookie?: string } = {},
 ): Promise<StatusResult> {
   try {
     const response = await fetchFn(new URL('/api/v1/system/status', apiUrl), {
       cache: 'no-store',
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', ...(cookie ? { cookie } : {}) },
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (response.status === 401) {

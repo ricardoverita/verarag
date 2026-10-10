@@ -27,6 +27,14 @@ describe('fetchSystemStatus', () => {
     expect(fetchFn.mock.calls[0]?.[0]).toEqual(new URL('http://api:3001/api/v1/system/status'));
   });
 
+  it('sends the session cookie when there is one', async () => {
+    const fetchFn = respondWith(Response.json(healthy));
+
+    await fetchSystemStatus('http://api:3001', { fetchFn, cookie: 'verarag_session=abc' });
+
+    expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({ cookie: 'verarag_session=abc' });
+  });
+
   it('reports HTTP errors', async () => {
     const fetchFn = respondWith(new Response('busy', { status: 503 }));
 

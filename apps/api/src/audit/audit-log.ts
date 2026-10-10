@@ -12,9 +12,12 @@ export type AuditAction =
   | 'MEMBER_REMOVED'
   | 'MEMBER_INVITED'
   | 'INVITATION_ACCEPTED'
-  | 'INVITATION_REVOKED';
+  | 'INVITATION_REVOKED'
+  | 'API_KEY_CREATED'
+  | 'API_KEY_REVOKED';
 
-export type AuditResourceType = 'user' | 'session' | 'organization' | 'membership' | 'invitation';
+export type AuditResourceType =
+  'user' | 'session' | 'organization' | 'membership' | 'invitation' | 'api_key';
 
 export interface AuditEvent {
   action: AuditAction;

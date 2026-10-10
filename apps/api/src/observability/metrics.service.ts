@@ -46,6 +46,19 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly apiKeysCreated = new Counter({
+    name: 'verarag_api_keys_created_total',
+    help: 'API keys created.',
+    registers: [this.registry],
+  });
+
+  readonly apiKeysRejected = new Counter({
+    name: 'verarag_auth_api_key_rejected_total',
+    help: 'Requests with an API key that was refused, by reason (invalid, revoked, expired or insufficient_scope).',
+    labelNames: ['reason'] as const,
+    registers: [this.registry],
+  });
+
   constructor() {
     collectDefaultMetrics({ register: this.registry });
   }

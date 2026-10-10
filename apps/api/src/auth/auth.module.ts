@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ApiKeysModule } from '../api-keys/api-keys.module.js';
 import { OrganizationsModule } from '../organizations/organizations.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
@@ -13,7 +14,7 @@ import { SessionsRepository } from './sessions.repository.js';
 import { UsersRepository } from './users.repository.js';
 
 @Module({
-  imports: [OrganizationsModule],
+  imports: [OrganizationsModule, ApiKeysModule],
   controllers: [AuthController],
   providers: [
     AuthService,

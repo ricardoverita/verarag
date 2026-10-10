@@ -1,4 +1,5 @@
 import { createParamDecorator, type ExecutionContext, SetMetadata } from '@nestjs/common';
+import type { ApiKeyScope } from '@verarag/contracts';
 import type { Request } from 'express';
 
 import { AppError } from '../common/app-error.js';
@@ -11,6 +12,14 @@ export const IS_PUBLIC = 'verarag:public';
  * still get the principal when the request carries a valid session.
  */
 export const Public = () => SetMetadata(IS_PUBLIC, true);
+
+export const API_KEY_SCOPES = 'verarag:api-key-scopes';
+
+/**
+ * Lets API keys call the route when they have all these scopes. Routes
+ * without it only accept sessions, so keys stay limited to what is listed.
+ */
+export const ApiKeyScopes = (...scopes: ApiKeyScope[]) => SetMetadata(API_KEY_SCOPES, scopes);
 
 /** The signed-in user. Only for routes that require a session. */
 export const CurrentUser = createParamDecorator(

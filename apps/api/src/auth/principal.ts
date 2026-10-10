@@ -1,3 +1,5 @@
+import type { ApiKeyScope } from '@verarag/contracts';
+
 /** The person behind a browser session. */
 export interface AuthenticatedUser {
   id: string;
@@ -13,8 +15,16 @@ export interface SessionPrincipal {
   expiresAt: Date;
 }
 
+/** A program calling with an organization API key. There is no user behind it. */
+export interface ApiKeyPrincipal {
+  kind: 'apiKey';
+  apiKeyId: string;
+  organizationId: string;
+  scopes: ApiKeyScope[];
+}
+
 /** Who is making the request, set by the global AuthGuard. */
-export type Principal = SessionPrincipal;
+export type Principal = SessionPrincipal | ApiKeyPrincipal;
 
 // Express merges this global namespace into its Request type.
 declare global {

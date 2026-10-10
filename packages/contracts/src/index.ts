@@ -1,6 +1,7 @@
 export * from './api-errors.js';
 export * from './api-identity.js';
 export * from './api-invitations.js';
+export * from './api-keys.js';
 export * from './events.js';
 export * from './messaging.js';
 export * from './status.js';

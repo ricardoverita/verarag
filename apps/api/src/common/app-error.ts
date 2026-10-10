@@ -37,6 +37,11 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   INVITATION_REVOKED: 'This invitation was cancelled. Ask for a new one.',
   INVITATION_EMAIL_MISMATCH:
     'This invitation was sent to a different email. Sign in with that email to accept it.',
+  API_KEY_NOT_FOUND: 'The API key does not exist in this organization.',
+  INVALID_API_KEY: 'The API key is not valid.',
+  API_KEY_REVOKED: 'This API key was revoked.',
+  API_KEY_EXPIRED: 'This API key has expired.',
+  INSUFFICIENT_SCOPE: 'This API key is not allowed to call this endpoint.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

@@ -84,7 +84,7 @@ describe('API keys', () => {
 
       for (const body of [
         { name: '' },
-        { name: 'Key', scopes: ['documents:write'] },
+        { name: 'Key', scopes: ['documents:admin'] },
         { name: 'Key', scopes: [] },
         { name: 'Key', expiresInDays: 0 },
       ]) {

@@ -2,7 +2,8 @@
  * HTTP payloads for organization API keys. A key is sent as
  * `Authorization: Bearer vrg_…` and only works on routes that accept its scopes.
  */
-export type ApiKeyScope = 'system:read';
+export type ApiKeyScope =
+  'system:read' | 'collections:read' | 'collections:write' | 'documents:read' | 'documents:write';
 
 export type ApiKeyStatus = 'active' | 'expired' | 'revoked';
 

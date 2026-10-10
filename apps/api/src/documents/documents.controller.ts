@@ -27,15 +27,15 @@ import type { Request, Response } from 'express';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { collectionIdParam } from '../collections/collections.dto.js';
-import type { ActionContext } from '../common/actor.js';
-import { requestIdOf } from '../common/request-context.js';
+import { ApiKeyScopes } from '../auth/auth.decorators.js';
 import { ResponseSchema } from '../common/response-schema.js';
 import { CONFIG, type Config } from '../config/config.js';
 import {
-  CurrentAccess,
-  type OrganizationAccess,
+  actionContext,
+  CurrentTenant,
   OrganizationAccessGuard,
   OrganizationRoles,
+  type TenantAccess,
 } from '../organizations/organization-access.js';
 import { DOCUMENT_TYPES } from './document-types.js';
 import {
@@ -63,9 +63,10 @@ export class CollectionDocumentsController {
   constructor(private readonly documents: DocumentsService) {}
 
   @Get()
+  @ApiKeyScopes('documents:read')
   @ResponseSchema(documentsResponse)
   async list(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('collectionId', { schema: collectionIdParam }) collectionId: string,
   ): Promise<DocumentsResponse> {
     const documents = await this.documents.list(access.organizationId, collectionId);
@@ -78,6 +79,7 @@ export class CollectionDocumentsController {
    */
   @Post()
   @OrganizationRoles('OWNER', 'ADMIN')
+  @ApiKeyScopes('documents:write')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -95,13 +97,15 @@ export class CollectionDocumentsController {
   })
   @ResponseSchema(documentView, HttpStatus.CREATED)
   async upload(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('collectionId', { schema: collectionIdParam }) collectionId: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<DocumentView> {
     try {
-      return toDocumentView(await this.documents.upload(contextOf(access, req), collectionId, req));
+      return toDocumentView(
+        await this.documents.upload(actionContext(access, req), collectionId, req),
+      );
     } catch (error) {
       closeUnreadUpload(req, res);
       throw error;
@@ -120,9 +124,10 @@ export class DocumentsController {
   ) {}
 
   @Get(':documentId')
+  @ApiKeyScopes('documents:read')
   @ResponseSchema(documentView)
   async get(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('documentId', { schema: documentIdParam }) documentId: string,
   ): Promise<DocumentView> {
     return toDocumentView(await this.documents.get(access.organizationId, documentId));
@@ -133,13 +138,14 @@ export class DocumentsController {
    * Only AVAILABLE documents can be downloaded.
    */
   @Get(':documentId/content')
+  @ApiKeyScopes('documents:read')
   @ApiProduces('application/octet-stream')
   @ApiOkResponse({
     description: 'The file, as an attachment.',
     content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } },
   })
   async content(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('documentId', { schema: documentIdParam }) documentId: string,
     @Res() res: Response,
   ): Promise<void> {
@@ -162,13 +168,14 @@ export class DocumentsController {
    */
   @Delete(':documentId')
   @OrganizationRoles('OWNER', 'ADMIN')
+  @ApiKeyScopes('documents:write')
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('documentId', { schema: documentIdParam }) documentId: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.documents.delete(contextOf(access, req), documentId);
+    await this.documents.delete(actionContext(access, req), documentId);
   }
 }
 
@@ -179,18 +186,11 @@ export class UploadPolicyController {
 
   /** The maximum size and the accepted types, from the same settings the upload enforces. */
   @Get('upload-policy')
+  @ApiKeyScopes('documents:write')
   @ResponseSchema(uploadPolicy)
   policy(): UploadPolicy {
     return toUploadPolicy(this.config.documents.maxSizeBytes);
   }
-}
-
-function contextOf(access: OrganizationAccess, req: Request): ActionContext {
-  return {
-    organizationId: access.organizationId,
-    actor: { type: 'user', userId: access.userId },
-    requestId: requestIdOf(req),
-  };
 }
 
 /** How much of a refused upload is read and discarded before the connection is closed. */

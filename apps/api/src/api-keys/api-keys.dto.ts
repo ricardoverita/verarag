@@ -9,7 +9,13 @@ import { z } from 'zod';
 import { apiKeyStatus } from './api-key-rules.js';
 import type { ApiKeyRecord } from './api-keys.repository.js';
 
-export const API_KEY_SCOPES = ['system:read'] as const satisfies readonly ApiKeyScope[];
+export const API_KEY_SCOPES = [
+  'system:read',
+  'collections:read',
+  'collections:write',
+  'documents:read',
+  'documents:write',
+] as const satisfies readonly ApiKeyScope[];
 
 const scopeSchema = z.enum(API_KEY_SCOPES);
 

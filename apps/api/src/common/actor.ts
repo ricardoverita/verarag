@@ -46,6 +46,6 @@ export interface ActionContext {
 }
 
 /** The audit columns for an actor. */
-export function auditActor(actor: Actor): { actorUserId?: string } {
-  return actor.type === 'user' ? { actorUserId: actor.userId } : {};
+export function auditActor(actor: Actor): { actorUserId?: string; actorApiKeyId?: string } {
+  return actor.type === 'user' ? { actorUserId: actor.userId } : { actorApiKeyId: actor.apiKeyId };
 }

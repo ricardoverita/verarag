@@ -15,14 +15,14 @@ import { ApiParam, ApiTags } from '@nestjs/swagger';
 import type { CollectionsResponse, CollectionView } from '@verarag/contracts';
 import type { Request } from 'express';
 
-import type { ActionContext } from '../common/actor.js';
-import { requestIdOf } from '../common/request-context.js';
+import { ApiKeyScopes } from '../auth/auth.decorators.js';
 import { ResponseSchema } from '../common/response-schema.js';
 import {
-  CurrentAccess,
-  type OrganizationAccess,
+  actionContext,
+  CurrentTenant,
   OrganizationAccessGuard,
   OrganizationRoles,
+  type TenantAccess,
 } from '../organizations/organization-access.js';
 import {
   collectionIdParam,
@@ -36,7 +36,10 @@ import {
 } from './collections.dto.js';
 import { CollectionsService } from './collections.service.js';
 
-/** Every member sees the collections; owners and admins manage them. */
+/**
+ * Every member sees the collections; owners and admins manage them. API keys
+ * of the organization need collections:read or collections:write.
+ */
 @ApiTags('collections')
 @Controller('organizations/:organizationId/collections')
 @UseGuards(OrganizationAccessGuard)
@@ -46,26 +49,29 @@ export class CollectionsController {
 
   @Post()
   @OrganizationRoles('OWNER', 'ADMIN')
+  @ApiKeyScopes('collections:write')
   @ResponseSchema(collectionView, HttpStatus.CREATED)
   async create(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Body({ schema: createCollectionRequest }) body: CreateCollectionRequest,
     @Req() req: Request,
   ): Promise<CollectionView> {
-    return toCollectionView(await this.collections.create(contextOf(access, req), body));
+    return toCollectionView(await this.collections.create(actionContext(access, req), body));
   }
 
   @Get()
+  @ApiKeyScopes('collections:read')
   @ResponseSchema(collectionsResponse)
-  async list(@CurrentAccess() access: OrganizationAccess): Promise<CollectionsResponse> {
+  async list(@CurrentTenant() access: TenantAccess): Promise<CollectionsResponse> {
     const collections = await this.collections.list(access.organizationId);
     return { collections: collections.map(toCollectionView) };
   }
 
   @Get(':collectionId')
+  @ApiKeyScopes('collections:read')
   @ResponseSchema(collectionView)
   async get(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('collectionId', { schema: collectionIdParam }) collectionId: string,
   ): Promise<CollectionView> {
     return toCollectionView(await this.collections.get(access.organizationId, collectionId));
@@ -73,34 +79,28 @@ export class CollectionsController {
 
   @Patch(':collectionId')
   @OrganizationRoles('OWNER', 'ADMIN')
+  @ApiKeyScopes('collections:write')
   @ResponseSchema(collectionView)
   async update(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('collectionId', { schema: collectionIdParam }) collectionId: string,
     @Body({ schema: updateCollectionRequest }) body: UpdateCollectionRequest,
     @Req() req: Request,
   ): Promise<CollectionView> {
     return toCollectionView(
-      await this.collections.update(contextOf(access, req), collectionId, body),
+      await this.collections.update(actionContext(access, req), collectionId, body),
     );
   }
 
   @Delete(':collectionId')
   @OrganizationRoles('OWNER', 'ADMIN')
+  @ApiKeyScopes('collections:write')
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
-    @CurrentAccess() access: OrganizationAccess,
+    @CurrentTenant() access: TenantAccess,
     @Param('collectionId', { schema: collectionIdParam }) collectionId: string,
     @Req() req: Request,
   ): Promise<void> {
-    await this.collections.delete(contextOf(access, req), collectionId);
+    await this.collections.delete(actionContext(access, req), collectionId);
   }
-}
-
-function contextOf(access: OrganizationAccess, req: Request): ActionContext {
-  return {
-    organizationId: access.organizationId,
-    actor: { type: 'user', userId: access.userId },
-    requestId: requestIdOf(req),
-  };
 }

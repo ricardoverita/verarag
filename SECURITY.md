@@ -42,10 +42,29 @@ No se consideran vulnerabilidades los valores pensados solo para desarrollo loca
 - las credenciales de ejemplo de `.env.example`;
 - NATS sin autenticación ni TLS en `compose.yaml`;
 - el uso de las credenciales de root de MinIO;
-- el endpoint `POST /api/v1/dev/events` cuando `DEV_ENDPOINTS_ENABLED=true`.
+- el endpoint `POST /api/v1/dev/events` cuando `DEV_ENDPOINTS_ENABLED=true` (la API no arranca con esa opción y `APP_ENV=production`);
+- las cookies sin `Secure` con `APP_ENV=development`;
+- `/metrics` sin autenticación, publicado solo en `127.0.0.1`.
 
 Las vulnerabilidades de dependencias de terceros se reportan a sus proyectos. Si afectan a VeraRAG de una forma particular, avísanos igualmente.
 
 ## Estado actual
 
-Todavía no hay autenticación (llega en la fase 1 del [roadmap](docs/roadmap.md)): todos los endpoints son públicos. Docker Compose publica los puertos solo en `127.0.0.1`. No expongas este entorno a internet.
+Desde la fase 1 hay cuentas, sesiones, organizaciones, roles, invitaciones y API keys. Cómo funcionan está en [docs/architecture/auth-and-tenancy.md](docs/architecture/auth-and-tenancy.md). En resumen:
+
+- Las contraseñas se guardan con Argon2id. Las sesiones, invitaciones y API keys, solo como SHA-256 de un valor aleatorio de 256 bits.
+- La cookie de sesión es `HttpOnly` y `SameSite=Lax`, y en producción, `Secure` con prefijo `__Host-`.
+- Las peticiones que modifican datos se rechazan si llegan desde otro origen.
+- Las rutas exigen sesión salvo que estén marcadas como públicas, y toda ruta de una organización comprueba la membresía.
+- Hay límites de tasa en login, registro e invitaciones, y un bloqueo por email tras 5 logins fallidos.
+- Ni las contraseñas, ni los tokens, ni las keys aparecen en logs, trazas, métricas o auditoría; el smoke test lo comprueba.
+
+Limitaciones conocidas, que no hace falta reportar:
+
+- No hay verificación de email, recuperación de contraseña, MFA ni SSO.
+- Los límites de tasa viven en la memoria de cada instancia de la API.
+- Sin un proxy delante que sobrescriba `X-Forwarded-For`, un cliente puede elegir la IP que ve la API a través de la web, lo que debilita los límites por IP. El bloqueo por email no depende de la IP.
+- La web todavía no envía una política `script-src` en su Content-Security-Policy: necesita nonces por petición, que harían dinámicas todas las páginas.
+- El aislamiento entre organizaciones se aplica en la API, sin Row Level Security en PostgreSQL ([ADR 0010](docs/adr/0010-tenant-isolation-in-the-application.md)).
+
+Docker Compose publica los puertos solo en `127.0.0.1`. Antes de exponer VeraRAG a internet, pon delante un proxy con TLS que sobrescriba `X-Forwarded-For`, usa `APP_ENV=production` y credenciales propias.

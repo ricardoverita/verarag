@@ -6,7 +6,8 @@ Este documento describe lo que existe hoy y hacia dónde va. Lo que todavía no 
 
 ```mermaid
 flowchart LR
-    browser([Navegador]) --> web["web<br/>Next.js"]
+    browser([Navegador]) -- "páginas y /api/v1" --> web["web<br/>Next.js"]
+    program([Integración]) -. "API key" .-> web
     web -- "HTTP (desde el servidor)" --> api["api<br/>NestJS"]
     api --> postgres[("PostgreSQL<br/>+ pgvector")]
     api --> storage[("MinIO / S3")]
@@ -16,17 +17,19 @@ flowchart LR
     redis[("Redis<br/>sin uso todavía")]
 ```
 
-| Componente     | Tecnología               | Hoy                                                                                     | Planificado                                                                          |
-| -------------- | ------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `web`          | Next.js 16, React 19     | Página que explica el proyecto y muestra el estado de cada componente.                  | Login, gestión de documentos y colecciones, chat con fuentes, administración.        |
-| `api`          | NestJS 12, Node.js 24    | Health, readiness, métricas, estado del sistema y un endpoint de desarrollo de eventos. | Autenticación, organizaciones, permisos, documentos, conversaciones, RAG, auditoría. |
-| `worker`       | Go 1.27                  | Consume `system.test`, publica su heartbeat, expone health y métricas.                  | Extracción, normalización, chunking, embeddings, indexación y reindexación.          |
-| PostgreSQL     | PostgreSQL 18 + pgvector | Fuente de verdad. Solo tiene habilitada la extensión `vector`.                          | Organizaciones, usuarios, documentos, fragmentos y vectores.                         |
-| NATS JetStream | NATS 2.15                | Stream `SYSTEM` y bucket `worker-heartbeats`.                                           | Stream `DOCUMENTS` con los eventos de ingesta.                                       |
-| Object storage | MinIO (local), API de S3 | La API comprueba que el bucket existe.                                                  | Documentos originales.                                                               |
-| Redis          | Redis 8                  | Se levanta con Docker Compose, pero ningún servicio lo usa.                             | Caché, rate limiting compartido, sesiones y locks.                                   |
+| Componente     | Tecnología               | Hoy                                                                                                                                                                | Planificado                                                                 |
+| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `web`          | Next.js 16, React 19     | Registro, login, dashboard, ajustes de organización, miembros, invitaciones y API keys, y el estado de cada componente. Reenvía `/api/v1` a la API.                | Gestión de documentos y colecciones, chat con fuentes, administración.      |
+| `api`          | NestJS 12, Node.js 24    | Cuentas, sesiones, organizaciones, roles, invitaciones, API keys, auditoría, health, métricas, estado del sistema, OpenAPI y un endpoint de desarrollo de eventos. | Permisos por documento, documentos, conversaciones, RAG.                    |
+| `worker`       | Go 1.27                  | Consume `system.test`, publica su heartbeat, expone health y métricas.                                                                                             | Extracción, normalización, chunking, embeddings, indexación y reindexación. |
+| PostgreSQL     | PostgreSQL 18 + pgvector | Fuente de verdad: usuarios, organizaciones, membresías, sesiones, invitaciones, API keys y auditoría.                                                              | Documentos, fragmentos y vectores.                                          |
+| NATS JetStream | NATS 2.15                | Stream `SYSTEM` y bucket `worker-heartbeats`.                                                                                                                      | Stream `DOCUMENTS` con los eventos de ingesta.                              |
+| Object storage | MinIO (local), API de S3 | La API comprueba que el bucket existe.                                                                                                                             | Documentos originales.                                                      |
+| Redis          | Redis 8                  | Se levanta con Docker Compose, pero ningún servicio lo usa.                                                                                                        | Caché, rate limiting compartido, sesiones y locks.                          |
 
-La web nunca habla con la base de datos ni con NATS: solo llama a la API, y lo hace desde su servidor. La API y el worker no se llaman entre sí: solo se comunican por NATS, con los contratos de [`packages/contracts`](../../packages/contracts).
+La web nunca habla con la base de datos ni con NATS: solo llama a la API, y lo hace desde su servidor. El navegador tampoco llama a la API: la web reenvía `/api/v1/*` desde su servidor, de modo que la cookie de sesión pertenece al origen de la web y no hace falta CORS. La API y el worker no se llaman entre sí: solo se comunican por NATS, con los contratos de [`packages/contracts`](../../packages/contracts).
+
+Cómo funcionan las cuentas, las sesiones, las organizaciones y las API keys está en [auth-and-tenancy.md](auth-and-tenancy.md). Las convenciones HTTP (versiones, validación, formato de errores y OpenAPI), en [api.md](api.md).
 
 ## Flujos actuales
 
@@ -40,9 +43,9 @@ sequenceDiagram
     participant P as PostgreSQL
     participant N as NATS
     participant S as MinIO
-    B->>W: GET /
+    B->>W: GET /dashboard
     W-->>B: HTML estático + panel en streaming
-    W->>A: GET /api/v1/system/status
+    W->>A: GET /api/v1/system/status (con la cookie de sesión)
     par comprobaciones en paralelo (2 s máx. cada una)
         A->>P: versión de la extensión vector
         A->>N: información de JetStream
@@ -53,7 +56,7 @@ sequenceDiagram
     W-->>B: API, Database, Messaging, Worker, Object storage
 ```
 
-La API guarda el resultado durante 2 segundos, así que varias pestañas abiertas no multiplican las consultas a la infraestructura. El navegador refresca el panel cada 10 segundos.
+La API guarda el resultado durante 2 segundos, así que varias pestañas abiertas no multiplican las consultas a la infraestructura. El estado detallado exige una sesión o una API key con `system:read`. Sin ellas, la página de inicio solo muestra que la API responde, y se refresca cada 10 segundos.
 
 El worker se considera sano si hay al menos una entrada en el bucket `worker-heartbeats`. Cada instancia escribe la suya cada 10 segundos mientras puede consumir eventos, las entradas caducan a los 30 segundos y el worker borra la suya al apagarse.
 
@@ -88,26 +91,26 @@ El endpoint solo existe con `DEV_ENDPOINTS_ENABLED=true`. Sirve para comprobar q
 
 ## Endpoints operativos
 
-| Servicio | Endpoint                    | Uso                                                |
-| -------- | --------------------------- | -------------------------------------------------- |
-| web      | `GET /healthz`              | Liveness. No comprueba la API.                     |
-| api      | `GET /healthz`              | Liveness. No comprueba dependencias.               |
-| api      | `GET /readyz`               | Readiness: PostgreSQL y NATS responden. 503 si no. |
-| api      | `GET /metrics`              | Métricas de Prometheus.                            |
-| api      | `GET /api/v1/system/status` | Estado detallado para la interfaz.                 |
-| worker   | `GET /healthz`              | Liveness (puerto 8081, solo en la red interna).    |
-| worker   | `GET /readyz`               | Conectado a NATS y consumiendo eventos.            |
-| worker   | `GET /metrics`              | Métricas de Prometheus.                            |
+| Servicio | Endpoint                    | Uso                                                   |
+| -------- | --------------------------- | ----------------------------------------------------- |
+| web      | `GET /health/live`          | Liveness. No comprueba la API.                        |
+| api      | `GET /health/live`          | Liveness. No comprueba dependencias.                  |
+| api      | `GET /health/ready`         | Readiness: PostgreSQL y NATS responden. 503 si no.    |
+| api      | `GET /metrics`              | Métricas de Prometheus.                               |
+| api      | `GET /api/v1/system/status` | Estado detallado. Sesión o API key con `system:read`. |
+| worker   | `GET /health/live`          | Liveness (puerto 8081, solo en la red interna).       |
+| worker   | `GET /health/ready`         | Conectado a NATS y consumiendo eventos.               |
+| worker   | `GET /metrics`              | Métricas de Prometheus.                               |
 
-`/metrics` y `/api/v1/system/status` no deberían exponerse públicamente en un despliegue real; hoy no tienen autenticación porque todavía no existe.
+Los probes de health son públicos y no revelan versiones ni detalles. `/metrics` no tiene autenticación y no debería exponerse públicamente en un despliegue real: en Compose solo se publica en `127.0.0.1`, y la web no lo reenvía.
 
 ## Lo que todavía no está
 
-- **Autenticación y autorización.** Todos los endpoints son públicos. Llegan en la fase 1.
-- **Aislamiento entre organizaciones.** No hay datos de clientes todavía; el modelo de tenants se define en la fase 1 y se completa en la fase 9.
+- **SSO, verificación de email, recuperación de contraseña y MFA.** Hoy solo hay cuentas con email y contraseña ([ADR 0009](../adr/0009-local-credentials-first-oidc-later.md)).
+- **Permisos por colección y por documento, y Row Level Security.** El aislamiento entre organizaciones se aplica en la API ([ADR 0010](../adr/0010-tenant-isolation-in-the-application.md)); los permisos finos llegan en la fase 9.
 - **Outbox.** Cuando la API escriba en la base de datos y publique eventos en la misma operación, hará falta para no perder eventos (fase 3).
 - **NATS en producción.** El entorno local no usa autenticación, TLS ni réplicas.
-- **Redis.** Está provisionado pero ningún servicio lo usa.
+- **Redis.** Está provisionado pero ningún servicio lo usa. Los límites de tasa viven en la memoria de la API y pasarán a Redis cuando haya varias réplicas.
 
 ## Hacia dónde va (planificado)
 

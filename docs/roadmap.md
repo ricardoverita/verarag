@@ -5,8 +5,8 @@ Fases aproximadas. El orden puede cambiar cuando aprendamos algo nuevo; lo que n
 | Fase | Nombre                                        | Estado      |
 | ---- | --------------------------------------------- | ----------- |
 | 0    | Foundation                                    | Hecha       |
-| 1    | Organizaciones, usuarios y autenticación      | Siguiente   |
-| 2    | Documentos y almacenamiento                   | Planificada |
+| 1    | Organizaciones, usuarios y autenticación      | Hecha       |
+| 2    | Documentos y almacenamiento                   | Siguiente   |
 | 3    | Pipeline de ingesta                           | Planificada |
 | 4    | Chunking y embeddings                         | Planificada |
 | 5    | Recuperación vectorial y primer RAG           | Planificada |
@@ -32,13 +32,21 @@ Una base que se puede clonar, levantar y probar.
 
 ## Fase 1 — Organizaciones, usuarios y autenticación
 
-- Modelo de organizaciones (tenants), usuarios y membresías.
-- Inicio de sesión y sesiones. Probablemente OIDC para empresas y email con enlace o contraseña para empezar.
-- Roles básicos por organización.
-- API keys para integraciones.
-- Proteger `/api/v1/system/status` y quitar los endpoints de desarrollo de cualquier entorno compartido.
+Hecha. Detalle en [auth-and-tenancy.md](architecture/auth-and-tenancy.md).
 
-**Lista cuando:** una persona puede crear una organización, invitar a otra y ambas solo ven los datos de su organización.
+- Usuarios, organizaciones y membresías en PostgreSQL, con ids UUIDv7 y migraciones SQL.
+- Registro y login con email y contraseña (Argon2id), sesiones opacas en una cookie `HttpOnly`, logout que revoca la sesión y protección contra _session fixation_, CSRF y fuerza bruta.
+- Roles OWNER, ADMIN, MEMBER y VIEWER, con la garantía de que una organización nunca se queda sin owner.
+- Invitaciones de un solo uso con enlace, aceptables con una cuenta existente o creando una nueva.
+- API keys por organización, revocables y con scopes; hoy, `system:read`.
+- Aislamiento entre organizaciones en la API, con tests dedicados.
+- `/api/v1/system/status` exige sesión o API key; los probes de health siguen siendo públicos; el endpoint de desarrollo no puede activarse con `APP_ENV=production`.
+- Formato de errores común, documentación OpenAPI, auditoría mínima y métricas de autenticación.
+- Web con registro, login, dashboard, selector de organización y ajustes de organización, miembros, invitaciones y API keys.
+
+**Lista cuando:** una persona puede crear una organización, invitar a otra y ambas solo ven los datos de su organización. _Cumplido: lo comprueban el test de flujo completo de la API y el smoke test contra Docker Compose._
+
+Quedó fuera, para fases posteriores: OIDC y SSO ([ADR 0009](adr/0009-local-credentials-first-oidc-later.md)), verificación de email, recuperación de contraseña, MFA, envío de invitaciones por email, Row Level Security ([ADR 0010](adr/0010-tenant-isolation-in-the-application.md)) y límites de tasa compartidos entre réplicas.
 
 ## Fase 2 — Documentos y almacenamiento
 

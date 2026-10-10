@@ -20,7 +20,7 @@ Campos de correlación:
 - **Worker:** `event_id`, `event_type` y `correlation_id`, que es el `requestId` de la petición HTTP que originó el evento.
 - **Ambos:** `traceId` / `trace_id` cuando hay una traza activa.
 
-Las cabeceras HTTP no se registran: cuando exista autenticación contendrán credenciales. Las peticiones a `/healthz`, `/readyz` y `/metrics` no generan logs.
+Las cabeceras HTTP y los cuerpos no se registran, porque llevan cookies de sesión, API keys y contraseñas. De cada petición solo quedan el método, la URL y el estado, y ningún token viaja en una URL: los de invitación van en el cuerpo. El smoke test comprueba que ninguna contraseña, token ni key de los que usa aparezca en los logs. Las peticiones a `/health/live`, `/health/ready` y `/metrics` no generan logs.
 
 ## Métricas
 
@@ -28,6 +28,14 @@ Las cabeceras HTTP no se registran: cuando exista autenticación contendrán cre
 | -------- | --------------------------------------------------------- | --------- | -------------------------------- |
 | api      | `http_server_request_duration_seconds`                    | histogram | `method`, `route`, `status_code` |
 | api      | `verarag_events_published_total`                          | counter   | `type`, `outcome`                |
+| api      | `verarag_auth_login_total`                                | counter   | —                                |
+| api      | `verarag_auth_login_failed_total`                         | counter   | `reason`                         |
+| api      | `verarag_auth_active_sessions`                            | gauge     | —                                |
+| api      | `verarag_auth_api_key_rejected_total`                     | counter   | `reason`                         |
+| api      | `verarag_organizations`                                   | gauge     | —                                |
+| api      | `verarag_invitations_created_total`                       | counter   | —                                |
+| api      | `verarag_invitations_accepted_total`                      | counter   | `account`                        |
+| api      | `verarag_api_keys_created_total`                          | counter   | —                                |
 | api      | métricas por defecto de Node.js (`process_*`, `nodejs_*`) | varios    | —                                |
 | worker   | `verarag_worker_events_processed_total`                   | counter   | `type`, `outcome`                |
 | worker   | `verarag_worker_event_processing_duration_seconds`        | histogram | `type`                           |
@@ -35,6 +43,9 @@ Las cabeceras HTTP no se registran: cuando exista autenticación contendrán cre
 
 - `route` es el patrón de la ruta (`/api/v1/system/status`) y no la URL, para no crear una serie por cada id.
 - `outcome` en el worker es `processed`, `rejected` (inválido, no se reintenta) o `failed` (se reintenta).
+- `reason` de los logins fallidos es `invalid_credentials` o `too_many_attempts`; el de las API keys rechazadas, `invalid`, `revoked`, `expired` o `insufficient_scope`. `account` es `existing` o `new`.
+- Ninguna métrica lleva como etiqueta emails, ids de usuario u organización, nombres ni prefijos de keys: la cardinalidad no depende del número de clientes.
+- Los gauges de sesiones activas y de organizaciones se calculan con una consulta a PostgreSQL en cada scrape.
 - Los subjects sin schema se agrupan con `type="unknown"`.
 
 ## Trazas

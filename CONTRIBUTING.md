@@ -23,7 +23,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Con todo arriba, `./scripts/smoke-test.sh` comprueba el estado de cada componente y el flujo API → NATS → worker.
+Con todo arriba, `./scripts/smoke-test.sh` comprueba el estado de cada componente, el flujo de autenticación completo a través de la web (registro, login, invitación, miembros y API keys), el aislamiento entre organizaciones, que ningún secreto llegue a los logs y el flujo API → NATS → worker.
 
 ### Desarrollar con recarga en caliente
 
@@ -43,7 +43,8 @@ export DATABASE_URL='postgres://verarag:local-postgres-password@localhost:5432/v
 export NATS_URL='nats://localhost:4222'
 export S3_ENDPOINT='http://localhost:9000' S3_BUCKET='verarag-documents' S3_FORCE_PATH_STYLE='true'
 export S3_ACCESS_KEY_ID='verarag' S3_SECRET_ACCESS_KEY='local-minio-password'
-export DEV_ENDPOINTS_ENABLED='true' API_HOST='127.0.0.1'
+export APP_ENV='development' DEV_ENDPOINTS_ENABLED='true' API_HOST='127.0.0.1'
+export WEB_PUBLIC_URL='http://localhost:3000'
 pnpm --filter @verarag/api dev
 ```
 
@@ -66,14 +67,14 @@ Los valores salen de `.env.example`; si cambiaste tu `.env`, ajústalos. Todas l
 
 Desde la raíz:
 
-| Comando          | Qué hace                                           |
-| ---------------- | -------------------------------------------------- |
-| `pnpm lint`      | ESLint en todo el código TypeScript                |
-| `pnpm format`    | Formatea con Prettier (`format:check` solo revisa) |
-| `pnpm typecheck` | `tsc` en cada paquete                              |
-| `pnpm test`      | Tests de contracts, api y web (Vitest)             |
-| `pnpm build`     | Compila contracts, api y web                       |
-| `pnpm contracts` | Compila solo `packages/contracts`                  |
+| Comando          | Qué hace                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| `pnpm lint`      | ESLint en todo el código TypeScript                                                    |
+| `pnpm format`    | Formatea con Prettier (`format:check` solo revisa)                                     |
+| `pnpm typecheck` | `tsc` en cada paquete                                                                  |
+| `pnpm test`      | Tests de contracts, api y web (Vitest). Los de integración de la API necesitan Docker. |
+| `pnpm build`     | Compila contracts, api y web                                                           |
+| `pnpm contracts` | Compila solo `packages/contracts`                                                      |
 
 En cada módulo de Go (`apps/worker`, `packages/contracts`):
 
@@ -109,7 +110,8 @@ go test -race ./...
 ## Tests
 
 - Todo cambio de comportamiento viene con tests.
-- La API se prueba con dobles en memoria de PostgreSQL, NATS y S3 (`apps/api/test/support`), así que los tests no necesitan Docker.
+- La API tiene dos proyectos de Vitest. `unit` usa dobles en memoria de PostgreSQL, NATS y S3 (`apps/api/test/support`) y no necesita Docker. `integration` levanta PostgreSQL con pgvector mediante Testcontainers, aplica las migraciones y prueba los flujos por HTTP contra una base de datos real; necesita Docker. Para ejecutar solo los primeros: `pnpm --filter @verarag/api exec vitest run --project unit`.
+- Todo recurso nuevo que pertenezca a una organización amplía los tests de aislamiento entre organizaciones (`apps/api/test/integration/tenant-isolation.spec.ts` y los de cada recurso).
 - El worker prueba su consumidor contra un servidor NATS embebido en el propio test (`internal/natstest`).
 - Si cambias un contrato, actualiza el schema, el ejemplo y los tipos de **ambos** lenguajes, y ejecuta los tests de los dos. El [README de los contratos](packages/contracts/README.md) explica los pasos.
 - Para cambios que cruzan servicios, ejecuta también `./scripts/smoke-test.sh` con el entorno levantado.

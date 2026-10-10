@@ -6,7 +6,7 @@
 
 VeraRAG es una plataforma open source de conocimiento y recuperación empresarial diseñada para construir sistemas RAG seguros, explicables y observables.
 
-> **Estado:** VeraRAG está en una etapa inicial. La arquitectura base funciona, pero todavía no es una plataforma RAG de producción. Hoy no hay ingesta de documentos, búsqueda ni chat.
+> **Estado:** VeraRAG está en una etapa inicial. La arquitectura base, las cuentas, las organizaciones, las invitaciones y las API keys funcionan, pero todavía no es una plataforma RAG de producción. Hoy no hay ingesta de documentos, búsqueda ni chat.
 
 ## Qué es VeraRAG
 
@@ -35,24 +35,27 @@ VeraRAG intenta resolver esas cosas desde el diseño, no como parches posteriore
 
 ## Estado actual
 
-Esta primera iteración (fase 0) deja una base ejecutable:
+La fase 0 dejó una base ejecutable y la fase 1 añadió las organizaciones y el acceso:
 
-- **API** en NestJS con health, readiness, métricas, estado detallado del sistema y un endpoint de desarrollo que publica un evento de prueba.
+- **Cuentas y sesiones.** Registro y login con email y contraseña (Argon2id), sesiones en una cookie `HttpOnly` que se pueden revocar, y protección contra CSRF, _session fixation_ y fuerza bruta.
+- **Organizaciones.** Cada persona puede pertenecer a varias, con roles OWNER, ADMIN, MEMBER y VIEWER. Una organización nunca se queda sin owner, y nadie ve datos de una organización a la que no pertenece.
+- **Invitaciones** de un solo uso por enlace, y **API keys** por organización con scopes.
+- **API** en NestJS con validación y formato de errores comunes, documentación OpenAPI en desarrollo, auditoría, health, readiness, métricas, estado detallado del sistema y un endpoint de desarrollo que publica un evento de prueba.
 - **Worker** en Go que consume ese evento desde NATS JetStream, lo valida contra su contrato y lo registra en un log estructurado. Publica un heartbeat para que la API sepa que está vivo.
-- **Web** en Next.js que explica el proyecto y muestra el estado de cada componente.
+- **Web** en Next.js con registro, login, dashboard, selector de organización y ajustes de organización, miembros, invitaciones y API keys.
 - **Contratos** en JSON Schema compartidos por TypeScript y Go.
 - **PostgreSQL con pgvector**, **NATS JetStream**, **MinIO** y **Redis** en Docker Compose.
 - Logs estructurados, request ids, métricas de Prometheus y trazas distribuidas opcionales.
-- CI con lint, typecheck, tests, builds, imágenes de Docker y un test end-to-end.
+- CI con lint, typecheck, tests unitarios y de integración contra PostgreSQL real, builds, imágenes de Docker y un smoke test end-to-end.
 
-Lo que **no** existe todavía: autenticación, organizaciones, documentos, ingesta, embeddings, búsqueda, RAG ni conectores. Redis está provisionado, pero ningún servicio lo usa aún.
+Lo que **no** existe todavía: documentos, ingesta, embeddings, búsqueda, RAG, conectores, SSO, verificación de email ni recuperación de contraseña. Redis está provisionado, pero ningún servicio lo usa aún.
 
 ## Arquitectura
 
 ```mermaid
 flowchart LR
     browser([Navegador]) --> web["web<br/>Next.js"]
-    web -- HTTP --> api["api<br/>NestJS"]
+    web -- "HTTP, también /api/v1" --> api["api<br/>NestJS"]
     api --> postgres[("PostgreSQL<br/>+ pgvector")]
     api --> storage[("MinIO / S3")]
     api -- eventos --> nats{{"NATS JetStream"}}
@@ -60,13 +63,13 @@ flowchart LR
     worker -- heartbeat --> nats
 ```
 
-- La **web** solo habla con la API, y lo hace desde su servidor.
-- La **API** es el control plane: será dueña de la autenticación, los permisos, los metadatos y la orquestación de las consultas.
+- El navegador solo habla con la **web**, que reenvía `/api/v1` a la API desde su servidor. La cookie de sesión pertenece al origen de la web y no hace falta CORS.
+- La **API** es el control plane: es dueña de las cuentas, las sesiones, las organizaciones y sus permisos, y lo será de los metadatos y de la orquestación de las consultas.
 - El **worker** es el data plane: procesará documentos, fragmentos y embeddings.
 - La API y el worker nunca se llaman directamente. Se comunican por NATS JetStream con payloads definidos en `packages/contracts`.
 - **PostgreSQL** es la fuente de verdad y guardará los vectores junto a sus metadatos, para que los permisos se apliquen en la misma consulta.
 
-Más detalle en [docs/architecture](docs/architecture/overview.md) y en los [ADR](docs/adr/README.md). Las variables de entorno de cada servicio están en [docs/configuration.md](docs/configuration.md).
+Más detalle en [docs/architecture](docs/architecture/overview.md), en [autenticación y organizaciones](docs/architecture/auth-and-tenancy.md) y en los [ADR](docs/adr/README.md). Las variables de entorno de cada servicio están en [docs/configuration.md](docs/configuration.md).
 
 ## Stack
 
@@ -78,11 +81,13 @@ Más detalle en [docs/architecture](docs/architecture/overview.md) y en los [ADR
 | Mensajería          | NATS 2.15 con JetStream                                |
 | Base de datos       | PostgreSQL 18 + pgvector 0.8.7                         |
 | Migraciones         | dbmate (SQL plano)                                     |
+| Autenticación       | Argon2id, sesiones opacas en PostgreSQL                |
+| Documentación API   | OpenAPI 3 generado desde los esquemas Zod              |
 | Almacenamiento      | API de S3; MinIO en desarrollo                         |
 | Caché (futuro)      | Redis 8                                                |
 | Contratos           | JSON Schema 2020-12                                    |
 | Observabilidad      | pino, slog, Prometheus, Grafana, OpenTelemetry, Jaeger |
-| Tests               | Vitest, Supertest, `go test`                           |
+| Tests               | Vitest, Supertest, Testcontainers, `go test`           |
 | Monorepo            | pnpm workspaces + módulos de Go                        |
 
 ## Quick start
@@ -98,14 +103,26 @@ docker compose up --build
 
 La primera build tarda unos minutos. Cuando todo esté arriba:
 
-| Servicio         | URL                                        |
-| ---------------- | ------------------------------------------ |
-| Web              | http://localhost:3000                      |
-| API              | http://localhost:3001/api/v1/system/status |
-| Consola de MinIO | http://localhost:9001                      |
-| Monitor de NATS  | http://localhost:8222                      |
+| Servicio                | URL                                |
+| ----------------------- | ---------------------------------- |
+| Web                     | http://localhost:3000              |
+| Documentación de la API | http://localhost:3001/api/docs     |
+| Readiness de la API     | http://localhost:3001/health/ready |
+| Consola de MinIO        | http://localhost:9001              |
+| Monitor de NATS         | http://localhost:8222              |
 
-La web debería mostrar API, Database, Messaging, Worker y Object storage como _Healthy_.
+### Primeros pasos
+
+1. Abre http://localhost:3000 y pulsa **Create an account**. Se crea también tu primera organización, donde eres owner.
+2. El dashboard muestra la organización y el estado de cada componente: API, Database, Messaging, Worker y Object storage deberían aparecer como _Healthy_.
+3. En **Members**, invita a otra persona: obtienes un enlace que se muestra una sola vez. Ábrelo en otra ventana privada para crear la segunda cuenta.
+4. En **API keys**, crea una key y pruébala:
+
+```bash
+curl -H "Authorization: Bearer $VERARAG_API_KEY" http://localhost:3000/api/v1/system/status
+```
+
+Si abres la web con otra dirección, por ejemplo `http://127.0.0.1:3000`, define `WEB_PUBLIC_URL` en `.env` para que los enlaces de invitación apunten a ella.
 
 ### Probar el flujo de eventos
 
@@ -152,7 +169,7 @@ pnpm install          # dependencias; también compila packages/contracts
 pnpm lint             # ESLint
 pnpm format           # Prettier
 pnpm typecheck        # TypeScript en todos los paquetes
-pnpm test             # tests de contracts, api y web
+pnpm test             # tests de contracts, api y web; los de integración necesitan Docker
 pnpm build            # build de contracts, api y web
 
 cd apps/worker && go vet ./... && go test -race ./...
@@ -176,7 +193,7 @@ deployments/
   docker/         configuración de Prometheus y Grafana
 docs/
   adr/            decisiones de arquitectura
-  architecture/   visión general, mensajería y observabilidad
+  architecture/   visión general, API, autenticación, mensajería y observabilidad
   configuration.md
   roadmap.md
 scripts/
@@ -186,32 +203,33 @@ compose.yaml      entorno local con Docker Compose
 
 ## Roadmap
 
-| Fase | Contenido                                                                                                                        |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | **Foundation**: monorepo, Docker, API, web, worker, NATS, PostgreSQL, pgvector, Redis, MinIO, observabilidad base y CI. _Hecha._ |
-| 1    | Organizaciones, usuarios y autenticación                                                                                         |
-| 2    | Documentos y almacenamiento                                                                                                      |
-| 3    | Pipeline de ingesta                                                                                                              |
-| 4    | Chunking y embeddings                                                                                                            |
-| 5    | Recuperación vectorial y primer RAG                                                                                              |
-| 6    | Citas y conversaciones                                                                                                           |
-| 7    | Recuperación híbrida: búsqueda vectorial, léxica y RRF                                                                           |
-| 8    | Reranking y JEV: clasificación de evidencia, reranking y evidence gating                                                         |
-| 9    | Permisos empresariales: RBAC, colecciones, permisos por documento y aislamiento entre tenants                                    |
-| 10   | Evaluación del RAG: datasets, métricas de recuperación, fidelidad, latencia, tokens y coste                                      |
-| 11   | Conectores: GitHub, Google Drive, S3, sitios web y otros                                                                         |
-| 12   | Endurecimiento para producción y self-hosting                                                                                    |
+| Fase | Contenido                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 0    | **Foundation**: monorepo, Docker, API, web, worker, NATS, PostgreSQL, pgvector, Redis, MinIO, observabilidad base y CI. _Hecha._     |
+| 1    | **Organizaciones, usuarios y autenticación**: cuentas, sesiones, roles, invitaciones, API keys y aislamiento entre tenants. _Hecha._ |
+| 2    | Documentos y almacenamiento. _Siguiente._                                                                                            |
+| 3    | Pipeline de ingesta                                                                                                                  |
+| 4    | Chunking y embeddings                                                                                                                |
+| 5    | Recuperación vectorial y primer RAG                                                                                                  |
+| 6    | Citas y conversaciones                                                                                                               |
+| 7    | Recuperación híbrida: búsqueda vectorial, léxica y RRF                                                                               |
+| 8    | Reranking y JEV: clasificación de evidencia, reranking y evidence gating                                                             |
+| 9    | Permisos empresariales: RBAC, colecciones, permisos por documento y aislamiento entre tenants                                        |
+| 10   | Evaluación del RAG: datasets, métricas de recuperación, fidelidad, latencia, tokens y coste                                          |
+| 11   | Conectores: GitHub, Google Drive, S3, sitios web y otros                                                                             |
+| 12   | Endurecimiento para producción y self-hosting                                                                                        |
 
 El detalle de cada fase, con lo que la da por terminada, está en [docs/roadmap.md](docs/roadmap.md).
 
 ## Seguridad
 
 - Si encuentras una vulnerabilidad, **no abras un issue público**: sigue [SECURITY.md](SECURITY.md).
-- Todavía no hay autenticación; todos los endpoints son públicos. No expongas este entorno a internet.
+- Las rutas exigen sesión o API key salvo las públicas (registro, login, invitaciones y health). Las contraseñas se guardan con Argon2id, y los tokens y keys solo como hash. El estado actual y las limitaciones conocidas están en [SECURITY.md](SECURITY.md#estado-actual).
+- Compose publica los puertos solo en `127.0.0.1`. No expongas este entorno a internet sin un proxy con TLS delante y `APP_ENV=production`.
 - Los valores de `.env.example` y la configuración de `compose.yaml` son para desarrollo local: credenciales de ejemplo, NATS sin autenticación y el endpoint de desarrollo activado.
 - `.env` está en `.gitignore`. No subas secretos reales.
 - La API y el worker validan su configuración al arrancar y se detienen con un mensaje claro si falta algo.
-- La API aplica cabeceras de seguridad y limita el tamaño de los cuerpos JSON y la frecuencia de peticiones; las imágenes de la API, la web y el worker se ejecutan sin root.
+- La API aplica cabeceras de seguridad y limita el tamaño de los cuerpos JSON y la frecuencia de peticiones, con límites más estrictos en login, registro e invitaciones. Las imágenes de la API, la web y el worker se ejecutan sin root.
 - CI ejecuta `pnpm audit` sobre las dependencias de producción y `govulncheck` sobre el código Go, y Dependabot propone actualizaciones cada semana.
 
 ## Contribuir

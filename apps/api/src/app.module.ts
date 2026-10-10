@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
+import { CollectionsModule } from './collections/collections.module.js';
 import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import type { Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
@@ -31,6 +32,7 @@ export class AppModule {
         AuthModule,
         OrganizationsModule,
         InvitationsModule,
+        CollectionsModule,
         HealthModule,
         ...(config.devEndpointsEnabled ? [DevModule] : []),
       ],

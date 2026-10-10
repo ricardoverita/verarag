@@ -14,10 +14,13 @@ export type AuditAction =
   | 'INVITATION_ACCEPTED'
   | 'INVITATION_REVOKED'
   | 'API_KEY_CREATED'
-  | 'API_KEY_REVOKED';
+  | 'API_KEY_REVOKED'
+  | 'COLLECTION_CREATED'
+  | 'COLLECTION_UPDATED'
+  | 'COLLECTION_DELETED';
 
 export type AuditResourceType =
-  'user' | 'session' | 'organization' | 'membership' | 'invitation' | 'api_key';
+  'user' | 'session' | 'organization' | 'membership' | 'invitation' | 'api_key' | 'collection';
 
 export interface AuditEvent {
   action: AuditAction;

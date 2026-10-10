@@ -1,3 +1,4 @@
+export * from './api-collections.js';
 export * from './api-errors.js';
 export * from './api-identity.js';
 export * from './api-invitations.js';

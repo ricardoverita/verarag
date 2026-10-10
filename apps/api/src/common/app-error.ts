@@ -42,6 +42,8 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   API_KEY_REVOKED: 'This API key was revoked.',
   API_KEY_EXPIRED: 'This API key has expired.',
   INSUFFICIENT_SCOPE: 'This API key is not allowed to call this endpoint.',
+  COLLECTION_NOT_FOUND: 'The collection does not exist in this organization.',
+  COLLECTION_NAME_TAKEN: 'Another collection in this organization already has this name.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

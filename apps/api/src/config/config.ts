@@ -27,6 +27,8 @@ const envSchema = z.object({
 
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+  /** How long a request waits for a new database connection before failing. */
+  DATABASE_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(3_000),
 
   S3_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
   S3_REGION: z.string().min(1).default('us-east-1'),
@@ -82,7 +84,7 @@ export interface Config {
   env: AppEnv;
   logLevel: LogLevel;
   http: { host: string; port: number; trustProxy: boolean | number | string };
-  database: { url: string; poolMax: number };
+  database: { url: string; poolMax: number; connectTimeoutMs: number };
   storage: {
     endpoint?: string;
     region: string;
@@ -147,7 +149,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     env: vars.APP_ENV,
     logLevel: vars.LOG_LEVEL,
     http: { host: vars.API_HOST, port: vars.API_PORT, trustProxy: vars.TRUST_PROXY },
-    database: { url: vars.DATABASE_URL, poolMax: vars.DATABASE_POOL_MAX },
+    database: {
+      url: vars.DATABASE_URL,
+      poolMax: vars.DATABASE_POOL_MAX,
+      connectTimeoutMs: vars.DATABASE_CONNECT_TIMEOUT_MS,
+    },
     storage: {
       endpoint: vars.S3_ENDPOINT,
       region: vars.S3_REGION,

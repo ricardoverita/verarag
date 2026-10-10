@@ -14,6 +14,7 @@ describe('loadConfig', () => {
     expect(config.http).toEqual({ host: '0.0.0.0', port: 3001, trustProxy: false });
     expect(config.logLevel).toBe('info');
     expect(config.database.poolMax).toBe(10);
+    expect(config.database.connectTimeoutMs).toBe(3_000);
     expect(config.nats.servers).toEqual(['nats://localhost:4222']);
     expect(config.devEndpointsEnabled).toBe(false);
     expect(config.tracing.endpoint).toBeUndefined();

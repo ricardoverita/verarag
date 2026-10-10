@@ -15,7 +15,7 @@ import { DatabaseHealth } from './database.health.js';
         const pool = new Pool({
           connectionString: config.database.url,
           max: config.database.poolMax,
-          connectionTimeoutMillis: 3_000,
+          connectionTimeoutMillis: config.database.connectTimeoutMs,
           idleTimeoutMillis: 30_000,
           application_name: 'verarag-api',
         });

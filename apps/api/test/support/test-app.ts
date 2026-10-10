@@ -11,10 +11,19 @@ import { ObjectStorage } from '../../src/storage/object-storage.js';
 
 export const testConfig: Config = {
   env: 'test',
-  logLevel: 'silent',
+  // TEST_LOG_LEVEL=error shows what the API logs while a test runs.
+  logLevel: (process.env.TEST_LOG_LEVEL as Config['logLevel'] | undefined) ?? 'silent',
   // Tests send X-Forwarded-For to act as different clients.
   http: { host: '127.0.0.1', port: 0, trustProxy: true },
-  database: { url: 'postgres://verarag:verarag@localhost:5432/verarag', poolMax: 1 },
+  database: {
+    url: 'postgres://verarag:verarag@localhost:5432/verarag',
+    poolMax: 1,
+    // Integration tests share one PostgreSQL container while every test file
+    // hashes passwords in parallel, so a new connection can take a few
+    // seconds. The 3 s production default made the first request of a file
+    // fail now and then with a 500.
+    connectTimeoutMs: 15_000,
+  },
   storage: { region: 'us-east-1', bucket: 'verarag-documents', forcePathStyle: true },
   nats: { servers: ['nats://localhost:4222'] },
   devEndpointsEnabled: true,
@@ -76,7 +85,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<NestE
   const fakes = options.fakes ?? createFakes();
   const config: Config = { ...testConfig, ...options.config };
   if (options.databaseUrl) {
-    config.database = { url: options.databaseUrl, poolMax: 5 };
+    config.database = { ...config.database, url: options.databaseUrl, poolMax: 5 };
   }
 
   let builder = Test.createTestingModule({ imports: [AppModule.forRoot(config)] })

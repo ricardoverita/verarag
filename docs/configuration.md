@@ -11,6 +11,7 @@ Con Docker Compose solo se edita `.env` (a partir de [`.env.example`](../.env.ex
 | `APP_ENV`                     | `production`            | `development`, `test` o `production`. Sin valor, se aplican las reglas de producción.                                                                |
 | `DATABASE_URL`                | obligatoria             | URL `postgres://` de PostgreSQL. En local, con `?sslmode=disable`.                                                                                   |
 | `DATABASE_POOL_MAX`           | `10`                    | Conexiones máximas del pool.                                                                                                                         |
+| `DATABASE_CONNECT_TIMEOUT_MS` | `3000`                  | Cuánto espera una petición por una conexión nueva a PostgreSQL antes de fallar.                                                                      |
 | `NATS_URL`                    | `nats://localhost:4222` | Servidor de NATS, o varios separados por comas.                                                                                                      |
 | `S3_BUCKET`                   | obligatoria             | Bucket de documentos. La API no lo crea.                                                                                                             |
 | `S3_ENDPOINT`                 | vacío                   | Endpoint compatible con S3 (MinIO, R2...). Vacío significa AWS S3.                                                                                   |

@@ -50,6 +50,12 @@ const envSchema = z.object({
     .default(7 * 24),
   /** Defaults to true in production, where it cannot be turned off. */
   SESSION_COOKIE_SECURE: optional(z.stringbool()),
+  INVITATION_TTL_HOURS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(30 * 24)
+    .default(7 * 24),
 
   /** Standard OpenTelemetry variable. Tracing is off when it is not set. */
   OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.url({ protocol: /^https?$/ })),
@@ -83,6 +89,7 @@ export interface Config {
     /** `__Host-` binds secure cookies to the exact host and path `/`. */
     cookieName: string;
   };
+  invitations: { ttlHours: number };
 }
 
 /** Injection token for the validated configuration. */
@@ -144,5 +151,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       cookieSecure,
       cookieName: cookieSecure ? '__Host-verarag_session' : 'verarag_session',
     },
+    invitations: { ttlHours: vars.INVITATION_TTL_HOURS },
   };
 }

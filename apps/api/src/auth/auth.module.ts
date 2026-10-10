@@ -27,6 +27,6 @@ import { UsersRepository } from './users.repository.js';
     { provide: PasswordHasher, useFactory: () => new PasswordHasher() },
     { provide: LoginAttempts, useFactory: () => new LoginAttempts() },
   ],
-  exports: [AuthGuard, SessionService, SessionCookie, PasswordHasher, UsersRepository],
+  exports: [AuthGuard, AuthService, SessionService, SessionCookie, PasswordHasher, UsersRepository],
 })
 export class AuthModule {}

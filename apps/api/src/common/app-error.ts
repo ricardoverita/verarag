@@ -30,6 +30,13 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   INSUFFICIENT_ROLE: 'Your role in this organization does not allow this action.',
   MEMBER_NOT_FOUND: 'The member does not exist in this organization.',
   LAST_OWNER: 'An organization needs at least one owner. Make someone else an owner first.',
+  ALREADY_A_MEMBER: 'This person is already a member of the organization.',
+  INVITATION_NOT_FOUND: 'This invitation does not exist.',
+  INVITATION_EXPIRED: 'This invitation has expired. Ask for a new one.',
+  INVITATION_ALREADY_USED: 'This invitation has already been used.',
+  INVITATION_REVOKED: 'This invitation was cancelled. Ask for a new one.',
+  INVITATION_EMAIL_MISMATCH:
+    'This invitation was sent to a different email. Sign in with that email to accept it.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

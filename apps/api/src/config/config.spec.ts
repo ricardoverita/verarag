@@ -27,6 +27,7 @@ describe('loadConfig', () => {
       cookieSecure: true,
       cookieName: '__Host-verarag_session',
     });
+    expect(config.invitations).toEqual({ ttlHours: 168 });
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',

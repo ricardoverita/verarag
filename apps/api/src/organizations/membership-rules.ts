@@ -14,6 +14,17 @@ export function assertCanChangeRole(actor: Role, current: Role, next: Role): voi
 }
 
 /**
+ * Inviting someone gives them a role, so it follows the same rule: only
+ * owners may invite new owners, and members and viewers may not invite.
+ * Cancelling an invitation follows it too.
+ */
+export function assertCanInvite(actor: Role, role: Role): void {
+  if (actor === 'OWNER') return;
+  if (actor === 'ADMIN' && role !== 'OWNER') return;
+  throw new AppError('INSUFFICIENT_ROLE');
+}
+
+/**
  * Anyone may leave an organization. Removing someone else follows the same
  * rule as changing their role: admins cannot remove owners.
  */

@@ -21,6 +21,7 @@ export const testConfig: Config = {
   tracing: {},
   web: { publicUrl: 'http://localhost:3000', origin: 'http://localhost:3000' },
   sessions: { ttlHours: 168, cookieSecure: false, cookieName: 'verarag_session' },
+  invitations: { ttlHours: 168 },
 };
 
 export const workerHeartbeat = {

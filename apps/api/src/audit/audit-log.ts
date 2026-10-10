@@ -9,9 +9,12 @@ export type AuditAction =
   | 'ORGANIZATION_CREATED'
   | 'ORGANIZATION_UPDATED'
   | 'MEMBER_ROLE_CHANGED'
-  | 'MEMBER_REMOVED';
+  | 'MEMBER_REMOVED'
+  | 'MEMBER_INVITED'
+  | 'INVITATION_ACCEPTED'
+  | 'INVITATION_REVOKED';
 
-export type AuditResourceType = 'user' | 'session' | 'organization' | 'membership';
+export type AuditResourceType = 'user' | 'session' | 'organization' | 'membership' | 'invitation';
 
 export interface AuditEvent {
   action: AuditAction;

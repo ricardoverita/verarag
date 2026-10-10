@@ -11,6 +11,7 @@ import { ConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DevModule } from './dev/dev.module.js';
 import { HealthModule } from './health/health.module.js';
+import { InvitationsModule } from './invitations/invitations.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
 import { OrganizationsModule } from './organizations/organizations.module.js';
 
@@ -29,6 +30,7 @@ export class AppModule {
         AuditModule,
         AuthModule,
         OrganizationsModule,
+        InvitationsModule,
         HealthModule,
         ...(config.devEndpointsEnabled ? [DevModule] : []),
       ],

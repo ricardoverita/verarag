@@ -33,6 +33,19 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly invitationsCreated = new Counter({
+    name: 'verarag_invitations_created_total',
+    help: 'Invitations created.',
+    registers: [this.registry],
+  });
+
+  readonly invitationsAccepted = new Counter({
+    name: 'verarag_invitations_accepted_total',
+    help: 'Invitations accepted, by existing or new users (account: existing or new).',
+    labelNames: ['account'] as const,
+    registers: [this.registry],
+  });
+
   constructor() {
     collectDefaultMetrics({ register: this.registry });
   }

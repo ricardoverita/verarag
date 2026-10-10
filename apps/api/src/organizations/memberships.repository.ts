@@ -79,6 +79,20 @@ export class MembershipsRepository {
     return rows[0] && toRecord(rows[0]);
   }
 
+  /** Whether the user with this email is an active member, without saying whether they exist. */
+  async isActiveMemberByEmail(
+    db: Queryable,
+    key: { organizationId: string; email: string },
+  ): Promise<boolean> {
+    const { rows } = await db.query(
+      `SELECT 1 FROM memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.organization_id = $1 AND u.email = $2 AND m.status = 'active'`,
+      [key.organizationId, key.email],
+    );
+    return rows.length > 0;
+  }
+
   /** Locks the row for the rest of the transaction. */
   async findActiveByIdForUpdate(
     db: Queryable,

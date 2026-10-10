@@ -149,8 +149,9 @@ export class AuthService {
   /**
    * Always a brand-new token, and any token the browser brought along is
    * revoked, so a session id planted before sign-in is worthless after it.
+   * Every way of signing in goes through here.
    */
-  private async startSession(
+  async startSession(
     tx: Parameters<SessionService['start']>[0],
     userId: string,
     context: RequestContext,

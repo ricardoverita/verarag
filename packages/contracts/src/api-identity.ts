@@ -49,3 +49,34 @@ export interface MeResponse {
   memberships: MembershipSummary[];
   session: { expiresAt: string };
 }
+
+export interface CreateOrganizationRequest {
+  name: string;
+}
+
+export interface UpdateOrganizationRequest {
+  name: string;
+}
+
+/** `GET /api/v1/organizations/:id`: the organization as seen by one of its members. */
+export interface OrganizationDetail {
+  organization: OrganizationView;
+  role: MemberRole;
+  memberCount: number;
+}
+
+export interface MemberView {
+  /** Id of the membership, used to change the role or remove the member. */
+  id: string;
+  user: { id: string; email: string; displayName: string };
+  role: MemberRole;
+  joinedAt: string;
+}
+
+export interface MembersResponse {
+  members: MemberView[];
+}
+
+export interface UpdateMemberRequest {
+  role: MemberRole;
+}

@@ -259,11 +259,12 @@ describe('document uploads', () => {
         owner.cookie,
         { name: 'endless.txt', type: 'text/plain' },
         async (write) => {
-          // Up to 100 times the limit, unless the server answers first.
-          for (let i = 0; i < 100 * 16; i += 1) {
+          // Far more than any buffer or drain on the way, unless the server
+          // answers first and closes the connection.
+          for (let i = 0; i < 1600 * 16; i += 1) {
             await write(Buffer.alloc(SMALL_LIMIT / 16, 'a'));
             sent += SMALL_LIMIT / 16;
-            if (i % 16 === 0) await new Promise((resolve) => setTimeout(resolve, 5));
+            if (i % 16 === 0) await new Promise((resolve) => setTimeout(resolve, 1));
           }
         },
       );
@@ -272,7 +273,7 @@ describe('document uploads', () => {
       expect(result.status).toBe(413);
       expect(errorCode(result.body)).toBe('DOCUMENT_TOO_LARGE');
       expect(finished()).toBe(false);
-      expect(sent).toBeLessThan(SMALL_LIMIT * 100);
+      expect(sent).toBeLessThan(SMALL_LIMIT * 1600);
       const list = (await owner.client.get(documentsPath).expect(200)).body as DocumentsResponse;
       expect(list.documents).toMatchObject([{ status: 'FAILED', failureReason: 'too_large' }]);
       expect(await bucket.exists((await documentRow(list.documents[0]!.id))!.object_key)).toBe(

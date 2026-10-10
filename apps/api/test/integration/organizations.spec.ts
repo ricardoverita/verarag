@@ -209,7 +209,11 @@ describe('organizations and members', () => {
         setRole(second, org, firstId, 'MEMBER'),
       ]);
 
-      expect(results.map((r) => r.status).sort()).toEqual([204, 409]);
+      // The loser gets 409 when it reaches the owner check, or 403 when the
+      // winner's change committed before its role was even read.
+      const [winner, loser] = results.map((r) => r.status).sort();
+      expect(winner).toBe(204);
+      expect([403, 409]).toContain(loser);
       const { rows } = await ctx.db.pool.query(
         "SELECT 1 FROM memberships WHERE organization_id = $1 AND role = 'OWNER' AND status = 'active'",
         [org],

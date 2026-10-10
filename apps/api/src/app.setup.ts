@@ -1,7 +1,8 @@
-import { StandardSchemaValidationPipe, VersioningType } from '@nestjs/common';
+import { VersioningType } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 
+import { validationPipe } from './common/validation.js';
 import { httpMetricsMiddleware } from './observability/http-metrics.middleware.js';
 import { httpTracingMiddleware } from './observability/http-tracing.middleware.js';
 import { MetricsService } from './observability/metrics.service.js';
@@ -16,7 +17,6 @@ export function configureApp(app: NestExpressApplication): void {
   app.use(httpTracingMiddleware());
   app.setGlobalPrefix('api', { exclude: [...OPERATIONAL_ROUTES] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-  // Validates parameters declared with a schema, e.g. @Body({ schema }).
-  app.useGlobalPipes(new StandardSchemaValidationPipe());
+  app.useGlobalPipes(validationPipe());
   app.enableShutdownHooks();
 }

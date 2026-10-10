@@ -1,19 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Req,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { EventTypes, type SystemTestEvent } from '@verarag/contracts';
 import type { Request } from 'express';
 import { z } from 'zod';
 
+import { AppError } from '../common/app-error.js';
 import {
   EventPublisher,
   type PublishedEvent,
@@ -58,7 +51,7 @@ export class DevEventsController {
       return await this.publisher.publish(event);
     } catch (error) {
       if (error instanceof PublishFailedError) {
-        throw new ServiceUnavailableException('messaging is unavailable, try again later');
+        throw new AppError('SERVICE_UNAVAILABLE', 'Messaging is unavailable. Try again later.');
       }
       throw error;
     }

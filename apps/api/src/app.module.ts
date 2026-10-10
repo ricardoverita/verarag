@@ -1,7 +1,8 @@
 import { type DynamicModule, Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import type { Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -24,7 +25,10 @@ export class AppModule {
         HealthModule,
         ...(config.devEndpointsEnabled ? [DevModule] : []),
       ],
-      providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+      providers: [
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: APP_FILTER, useClass: ApiExceptionFilter },
+      ],
     };
   }
 }

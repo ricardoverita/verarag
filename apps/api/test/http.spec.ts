@@ -1,5 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import type { SystemStatus } from '@verarag/contracts';
+import type { ApiErrorResponse, SystemStatus } from '@verarag/contracts';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -135,14 +135,43 @@ describe('HTTP API', () => {
       ['a message over 500 characters', { type: 'system.test', message: 'x'.repeat(501) }],
       ['no message', { type: 'system.test' }],
     ])('rejects %s', async (_case, body) => {
-      await publish(body).expect(400);
+      const response = await publish(body).expect(400);
+
+      expect((response.body as ApiErrorResponse).error.code).toBe('VALIDATION_FAILED');
       expect(fakes.nats.publish).not.toHaveBeenCalled();
+    });
+
+    it('says which fields are invalid', async () => {
+      const response = await publish({ type: 'system.test', message: '' })
+        .set('x-request-id', 'bad-input-1')
+        .expect(400);
+
+      expect(response.body).toEqual({
+        error: {
+          code: 'VALIDATION_FAILED',
+          message: 'The request is not valid.',
+          requestId: 'bad-input-1',
+          details: [{ path: 'message', message: expect.any(String) as string }],
+        },
+      });
+    });
+
+    it('rejects malformed JSON with the same error format', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/dev/events')
+        .set('content-type', 'application/json')
+        .send('{"type": ')
+        .expect(400);
+
+      expect((response.body as ApiErrorResponse).error.code).toBe('VALIDATION_FAILED');
     });
 
     it('returns 503 when NATS does not accept the event', async () => {
       fakes.nats.publish.mockRejectedValue(new Error('no responders available'));
 
-      await publish({ type: 'system.test', message: 'hello' }).expect(503);
+      const response = await publish({ type: 'system.test', message: 'hello' }).expect(503);
+
+      expect((response.body as ApiErrorResponse).error.code).toBe('SERVICE_UNAVAILABLE');
     });
 
     it('limits how many events a client can publish per minute', async () => {
@@ -150,7 +179,9 @@ describe('HTTP API', () => {
         await publish({ type: 'system.test', message: `event ${i}` }).expect(202);
       }
 
-      await publish({ type: 'system.test', message: 'one too many' }).expect(429);
+      const response = await publish({ type: 'system.test', message: 'one too many' }).expect(429);
+
+      expect((response.body as ApiErrorResponse).error.code).toBe('RATE_LIMITED');
     });
 
     it('does not exist when the development endpoints are disabled', async () => {
@@ -206,6 +237,11 @@ describe('HTTP API', () => {
   });
 
   it('returns 404 for unknown routes', async () => {
-    await request(app.getHttpServer()).get('/api/v1/unknown').expect(404);
+    const response = await request(app.getHttpServer()).get('/api/v1/unknown').expect(404);
+
+    expect((response.body as ApiErrorResponse).error).toMatchObject({
+      code: 'NOT_FOUND',
+      requestId: expect.any(String) as string,
+    });
   });
 });

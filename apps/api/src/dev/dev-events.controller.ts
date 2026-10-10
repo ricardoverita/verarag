@@ -6,6 +6,7 @@ import { EventTypes, type SystemTestEvent } from '@verarag/contracts';
 import type { Request } from 'express';
 import { z } from 'zod';
 
+import { Public } from '../auth/auth.decorators.js';
 import { AppError } from '../common/app-error.js';
 import {
   EventPublisher,
@@ -25,6 +26,8 @@ type DevEventRequest = z.infer<typeof devEventRequest>;
  * It is not part of the product and is only mounted when
  * DEV_ENDPOINTS_ENABLED=true.
  */
+// Never mounted in production; see DEV_ENDPOINTS_ENABLED.
+@Public()
 @Controller('dev/events')
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 export class DevEventsController {

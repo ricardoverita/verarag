@@ -17,6 +17,16 @@ describe('loadConfig', () => {
     expect(config.nats.servers).toEqual(['nats://localhost:4222']);
     expect(config.devEndpointsEnabled).toBe(false);
     expect(config.tracing.endpoint).toBeUndefined();
+    expect(config.env).toBe('production');
+    expect(config.web).toEqual({
+      publicUrl: 'http://localhost:3000',
+      origin: 'http://localhost:3000',
+    });
+    expect(config.sessions).toEqual({
+      ttlHours: 168,
+      cookieSecure: true,
+      cookieName: '__Host-verarag_session',
+    });
     expect(config.storage).toEqual({
       endpoint: undefined,
       region: 'us-east-1',
@@ -64,6 +74,19 @@ describe('loadConfig', () => {
     ['loopback, uniquelocal', 'loopback, uniquelocal'],
   ])('reads TRUST_PROXY=%j', (value, expected) => {
     expect(loadConfig({ ...baseEnv, TRUST_PROXY: value }).http.trustProxy).toEqual(expected);
+  });
+
+  it('allows plain HTTP session cookies outside production only', () => {
+    const local = loadConfig({
+      ...baseEnv,
+      APP_ENV: 'development',
+      SESSION_COOKIE_SECURE: 'false',
+    });
+    expect(local.sessions).toMatchObject({ cookieSecure: false, cookieName: 'verarag_session' });
+
+    expect(() => loadConfig({ ...baseEnv, SESSION_COOKIE_SECURE: 'false' })).toThrow(
+      /SESSION_COOKIE_SECURE cannot be false/,
+    );
   });
 
   it('treats empty variables as unset', () => {

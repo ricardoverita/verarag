@@ -20,6 +20,19 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly logins = new Counter({
+    name: 'verarag_auth_login_total',
+    help: 'Successful sign-ins.',
+    registers: [this.registry],
+  });
+
+  readonly loginFailures = new Counter({
+    name: 'verarag_auth_login_failed_total',
+    help: 'Rejected sign-ins, by reason (invalid_credentials or too_many_attempts).',
+    labelNames: ['reason'] as const,
+    registers: [this.registry],
+  });
+
   constructor() {
     collectDefaultMetrics({ register: this.registry });
   }

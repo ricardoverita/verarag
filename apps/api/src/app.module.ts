@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AuditModule } from './audit/audit.module.js';
+import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import type { Config } from './config/config.js';
@@ -30,7 +31,9 @@ export class AppModule {
         ...(config.devEndpointsEnabled ? [DevModule] : []),
       ],
       providers: [
+        // Order matters: rate limits apply before any session lookup.
         { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: APP_GUARD, useExisting: AuthGuard },
         { provide: APP_FILTER, useClass: ApiExceptionFilter },
       ],
     };

@@ -6,6 +6,6 @@ import { OrganizationsService } from './organizations.service.js';
 
 @Module({
   providers: [OrganizationsRepository, MembershipsRepository, OrganizationsService],
-  exports: [OrganizationsService],
+  exports: [OrganizationsService, MembershipsRepository],
 })
 export class OrganizationsModule {}

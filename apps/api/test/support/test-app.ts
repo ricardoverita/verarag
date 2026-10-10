@@ -10,6 +10,7 @@ import { NatsClient } from '../../src/messaging/nats.client.js';
 import { ObjectStorage } from '../../src/storage/object-storage.js';
 
 export const testConfig: Config = {
+  env: 'test',
   logLevel: 'silent',
   // Tests send X-Forwarded-For to act as different clients.
   http: { host: '127.0.0.1', port: 0, trustProxy: true },
@@ -18,6 +19,8 @@ export const testConfig: Config = {
   nats: { servers: ['nats://localhost:4222'] },
   devEndpointsEnabled: true,
   tracing: {},
+  web: { publicUrl: 'http://localhost:3000', origin: 'http://localhost:3000' },
+  sessions: { ttlHours: 168, cookieSecure: false, cookieName: 'verarag_session' },
 };
 
 export const workerHeartbeat = {

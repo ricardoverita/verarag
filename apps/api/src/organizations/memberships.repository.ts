@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { Queryable } from '../database/database.js';
+import type { OrganizationRecord } from './organizations.repository.js';
 import type { Role } from './roles.js';
 
 export interface MembershipRecord {
@@ -37,6 +38,38 @@ export class MembershipsRepository {
     );
     return toRecord(rows[0]!);
   }
+
+  /** Active memberships of a user, oldest first. The basis of every tenant check. */
+  async listForUser(db: Queryable, userId: string): Promise<UserMembership[]> {
+    const { rows } = await db.query<UserMembershipRow>(
+      `SELECT m.role, m.created_at AS joined_at, o.id, o.name, o.slug, o.created_at
+       FROM memberships m
+       JOIN organizations o ON o.id = m.organization_id
+       WHERE m.user_id = $1 AND m.status = 'active'
+       ORDER BY m.created_at`,
+      [userId],
+    );
+    return rows.map((row) => ({
+      role: row.role,
+      joinedAt: row.joined_at,
+      organization: { id: row.id, name: row.name, slug: row.slug, createdAt: row.created_at },
+    }));
+  }
+}
+
+export interface UserMembership {
+  role: Role;
+  joinedAt: Date;
+  organization: OrganizationRecord;
+}
+
+interface UserMembershipRow {
+  role: Role;
+  joined_at: Date;
+  id: string;
+  name: string;
+  slug: string;
+  created_at: Date;
 }
 
 function toRecord(row: MembershipRow): MembershipRecord {

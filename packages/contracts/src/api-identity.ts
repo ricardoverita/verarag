@@ -30,3 +30,22 @@ export interface RegisterResponse {
   organization: OrganizationView;
   role: MemberRole;
 }
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/** An organization the user belongs to, with their role in it. */
+export interface MembershipSummary {
+  organization: OrganizationView;
+  role: MemberRole;
+  joinedAt: string;
+}
+
+/** `GET /api/v1/auth/me` and the response of a successful login. */
+export interface MeResponse {
+  user: UserView;
+  memberships: MembershipSummary[];
+  session: { expiresAt: string };
+}

@@ -1,4 +1,4 @@
-import type { RegisterResponse, UserView } from '@verarag/contracts';
+import type { MeResponse, RegisterResponse, UserView } from '@verarag/contracts';
 import { z } from 'zod';
 
 import {
@@ -52,7 +52,29 @@ export const registerResponse = z.object({
   role: roleSchema,
 }) satisfies z.ZodType<RegisterResponse>;
 
-export function toUserView(user: UserRecord): UserView {
+export const loginRequest = z.object({
+  email: emailSchema,
+  // Only bounded: rules about length apply when a password is chosen, not when it is typed.
+  password: z.string().min(1).max(128),
+});
+
+export type LoginRequest = z.infer<typeof loginRequest>;
+
+export const meResponse = z.object({
+  user: userView,
+  memberships: z.array(
+    z.object({
+      organization: organizationView,
+      role: roleSchema,
+      joinedAt: z.iso.datetime(),
+    }),
+  ),
+  session: z.object({ expiresAt: z.iso.datetime() }),
+}) satisfies z.ZodType<MeResponse>;
+
+export function toUserView(
+  user: Pick<UserRecord, 'id' | 'email' | 'displayName' | 'createdAt'>,
+): UserView {
   return {
     id: user.id,
     email: user.email,

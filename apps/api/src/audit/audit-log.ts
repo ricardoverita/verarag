@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import type { Queryable } from '../database/database.js';
 
-export type AuditAction = 'USER_REGISTERED' | 'ORGANIZATION_CREATED';
+export type AuditAction =
+  'USER_REGISTERED' | 'USER_LOGGED_IN' | 'USER_LOGGED_OUT' | 'ORGANIZATION_CREATED';
 
-export type AuditResourceType = 'user' | 'organization';
+export type AuditResourceType = 'user' | 'session' | 'organization';
 
 export interface AuditEvent {
   action: AuditAction;

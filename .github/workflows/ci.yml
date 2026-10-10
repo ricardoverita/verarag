@@ -19,7 +19,7 @@ jobs:
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -35,6 +35,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
+      # The API integration tests start PostgreSQL with Testcontainers, using
+      # the Docker engine that GitHub-hosted Ubuntu runners include.
       - run: pnpm test
       - run: pnpm build
 
@@ -117,7 +119,8 @@ jobs:
         run: docker compose build
       - name: Start the stack
         run: docker compose up --detach --wait --wait-timeout 180
-      # API -> NATS JetStream -> worker, plus the health of every component.
+      # The auth flow through the web app, tenant isolation, secrets kept out
+      # of the logs, API -> NATS JetStream -> worker and component health.
       - name: Smoke test
         run: ./scripts/smoke-test.sh
       - name: Show logs

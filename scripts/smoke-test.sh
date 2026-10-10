@@ -2,12 +2,20 @@
 # End-to-end check of a running local stack (`docker compose up`):
 #
 #   1. the API is ready and every component reports healthy;
-#   2. the web app answers;
-#   3. an event published through POST /api/v1/dev/events reaches the
+#   2. the auth flow works through the web app, as a browser uses it:
+#      sign-up, sign-out, sign-in, a second organization, an invitation
+#      accepted by a new user, members, and an API key created, used and
+#      revoked;
+#   3. another tenant cannot see any of it;
+#   4. no password, session token, invitation token or API key reaches the
+#      logs;
+#   5. an event published through POST /api/v1/dev/events reaches the
 #      worker through NATS JetStream and shows up in its logs.
 #
 # CI runs it after `docker compose up --wait`. It needs curl, jq and Docker,
-# and DEV_ENDPOINTS_ENABLED=true in .env.
+# and DEV_ENDPOINTS_ENABLED=true in .env. Sign-ups are limited to 5 every
+# 10 minutes per client: run it at most twice in a row, or restart the api
+# container.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -43,39 +51,55 @@ retry() {
   done
 }
 
-worker_log_line() {
-  docker compose logs --no-log-prefix worker 2>/dev/null |
-    jq -cR --arg id "$1" 'fromjson? | select(.msg == "system test event received" and .event_id == $id)'
+workdir=$(mktemp -d)
+trap 'rm -rf "$workdir"' EXIT
+
+# call <client> <method> <path> [json]: a request to the web app's /api/v1
+# proxy with the client's cookie jar, sent like a browser on the web app's
+# origin would. Sets STATUS and BODY.
+call() {
+  local jar="$workdir/$1.cookies" method=$2 path=$3 data=${4:-}
+  local args=(-sS -b "$jar" -c "$jar" -X "$method" -H "Origin: $WEB_URL"
+    -H 'Accept: application/json' -o "$workdir/body" -w '%{http_code}')
+  [[ -n "$data" ]] && args+=(-H 'Content-Type: application/json' -d "$data")
+  STATUS=$(curl "${args[@]}" "$WEB_URL$path")
+  BODY=$(cat "$workdir/body")
 }
 
-worker_logged() {
-  [[ -n "$(worker_log_line "$1")" ]]
+# expect <status> <what>: fails unless the last call answered <status>.
+expect() {
+  if [[ "$STATUS" != "$1" ]]; then
+    if [[ "$STATUS" == "429" ]]; then
+      fail "$2: rate limited. Wait 10 minutes or restart the api container."
+    fi
+    fail "$2: expected HTTP $1, got $STATUS: $BODY"
+  fi
+}
+
+session_token() {
+  awk '$6 ~ /verarag_session$/ { print $7 }' "$workdir/$1.cookies" | tail -n 1
+}
+
+# Values that must never appear in the logs.
+secrets=()
+
+stamp="$(date +%s)-$RANDOM"
+ana_email="smoke-ana-$stamp@example.com"
+bruno_email="smoke-bruno-$stamp@example.com"
+carla_email="smoke-carla-$stamp@example.com"
+ana_password="smoke ana passphrase $stamp"
+bruno_password="smoke bruno passphrase $stamp"
+carla_password="smoke carla passphrase $stamp"
+secrets+=("$ana_password" "$bruno_password" "$carla_password")
+
+account() {
+  jq -nc --arg email "$1" --arg password "$2" --arg name "$3" --arg organization "$4" \
+    '{email: $email, password: $password, displayName: $name, organizationName: $organization}'
 }
 
 step "API readiness ($API_URL)"
 retry "the API is not ready" curl -fsS -o /dev/null "$API_URL/health/ready"
 echo "    ready"
-
-step "Sign-in"
-cookies=$(mktemp)
-trap 'rm -f "$cookies"' EXIT
-smoke_email="smoke-$(date +%s)-$RANDOM@example.com"
-curl -fsS -o /dev/null -c "$cookies" -X POST "$API_URL/api/v1/auth/register" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$smoke_email\", \"password\": \"smoke test password\", \"displayName\": \"Smoke Test\", \"organizationName\": \"Smoke Test\"}" ||
-  fail "could not register a user"
-echo "    registered $smoke_email"
-
-step "System status"
-system_is_healthy() {
-  curl -fsS -b "$cookies" "$API_URL/api/v1/system/status" | jq -e '.status == "ok"' >/dev/null 2>&1
-}
-retry "not every component is healthy" system_is_healthy
-curl -fsS -b "$cookies" "$API_URL/api/v1/system/status" |
-  jq -r '.components[] | "    \(.name): \(.status) \(.details // {} | tostring)"'
-status_code=$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/api/v1/system/status")
-[[ "$status_code" == "401" ]] || fail "the system status answered $status_code without a session"
-echo "    without a session: 401"
 
 step "Web app ($WEB_URL)"
 curl -fsS -o /dev/null "$WEB_URL/health/live" || fail "the web app health endpoint does not answer"
@@ -83,8 +107,147 @@ page=$(curl -fsS "$WEB_URL/") || fail "the home page does not answer"
 grep -q "System status" <<<"$page" || fail "the home page did not render the status panel"
 echo "    home page rendered"
 
+step "Sign-up"
+curl -sS -D "$workdir/headers" -o /dev/null -c "$workdir/ana.cookies" -X POST \
+  "$WEB_URL/api/v1/auth/register" -H "Origin: $WEB_URL" -H 'Content-Type: application/json' \
+  -d "$(account "$ana_email" "$ana_password" "Ana" "Smoke Labs $stamp")"
+set_cookie=$(grep -i '^set-cookie:.*verarag_session=' "$workdir/headers" || true)
+[[ -n "$set_cookie" ]] || fail "sign-up did not set the session cookie"
+grep -qi 'httponly' <<<"$set_cookie" || fail "the session cookie is not HttpOnly"
+grep -qi 'samesite=lax' <<<"$set_cookie" || fail "the session cookie is not SameSite=Lax"
+call ana GET /api/v1/auth/me
+expect 200 "reading the new session"
+labs=$(jq -r '.memberships[0].organization.id' <<<"$BODY")
+[[ "$(jq -r '.memberships[0].role' <<<"$BODY")" == "OWNER" ]] || fail "the new user is not OWNER"
+first_token=$(session_token ana)
+secrets+=("$first_token")
+echo "    $ana_email is OWNER of organization $labs; the cookie is HttpOnly and SameSite=Lax"
+
+step "System status"
+system_is_healthy() {
+  call ana GET /api/v1/system/status
+  [[ "$STATUS" == "200" ]] && jq -e '.status == "ok"' <<<"$BODY" >/dev/null
+}
+retry "not every component is healthy" system_is_healthy
+jq -r '.components[] | "    \(.name): \(.status) \(.details // {} | tostring)"' <<<"$BODY"
+status_code=$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/api/v1/system/status")
+[[ "$status_code" == "401" ]] || fail "the system status answered $status_code without a session"
+echo "    without a session: 401"
+
+step "Sign-out and sign-in"
+call ana POST /api/v1/auth/logout
+expect 204 "signing out"
+status_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Cookie: verarag_session=$first_token" \
+  "$API_URL/api/v1/auth/me")
+[[ "$status_code" == "401" ]] || fail "the session still works after signing out ($status_code)"
+call ana POST /api/v1/auth/login "$(jq -nc --arg e "$ana_email" '{email: $e, password: "wrong password"}')"
+expect 401 "signing in with a wrong password"
+call ana POST /api/v1/auth/login "$(jq -nc --arg e "$ana_email" --arg p "$ana_password" '{email: $e, password: $p}')"
+expect 200 "signing in"
+secrets+=("$(session_token ana)")
+echo "    the old session is revoked; a wrong password is refused; signed in again"
+
+step "Cross-site requests"
+status_code=$(curl -s -o /dev/null -w '%{http_code}' -b "$workdir/ana.cookies" -X POST \
+  -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
+  -d '{"name": "Forged"}' "$WEB_URL/api/v1/organizations")
+[[ "$status_code" == "403" ]] || fail "a cross-site POST answered $status_code"
+echo "    a POST from another origin is refused"
+
+step "Second organization"
+call ana POST /api/v1/organizations '{"name": "Smoke Research"}'
+expect 201 "creating an organization"
+research=$(jq -r '.organization.id' <<<"$BODY")
+call ana GET /api/v1/organizations
+expect 200 "listing organizations"
+[[ "$(jq '.organizations | length' <<<"$BODY")" == "2" ]] || fail "Ana should belong to 2 organizations"
+echo "    created $research; Ana belongs to 2 organizations"
+
+step "Invitation"
+call ana POST "/api/v1/organizations/$labs/invitations" \
+  "$(jq -nc --arg e "$bruno_email" '{email: $e, role: "MEMBER"}')"
+expect 201 "inviting Bruno"
+invite_token=$(jq -r '.inviteUrl' <<<"$BODY" | sed 's|.*/invitations/||')
+secrets+=("$invite_token")
+call bruno POST /api/v1/invitations/preview "$(jq -nc --arg t "$invite_token" '{token: $t}')"
+expect 200 "previewing the invitation"
+call bruno POST /api/v1/invitations/register \
+  "$(jq -nc --arg t "$invite_token" --arg p "$bruno_password" '{token: $t, password: $p, displayName: "Bruno"}')"
+expect 201 "accepting the invitation with a new account"
+secrets+=("$(session_token bruno)")
+call bruno POST /api/v1/invitations/register \
+  "$(jq -nc --arg t "$invite_token" --arg p "$bruno_password" '{token: $t, password: $p, displayName: "Bruno"}')"
+expect 410 "reusing the invitation"
+echo "    Bruno joined with the link, which then stopped working"
+
+step "Members"
+call bruno GET /api/v1/auth/me
+expect 200 "reading Bruno's session"
+[[ "$(jq -r '[.memberships[] | .organization.id + ":" + .role] | join(",")' <<<"$BODY")" == "$labs:MEMBER" ]] ||
+  fail "Bruno should be MEMBER of Ana's organization only"
+call bruno GET "/api/v1/organizations/$labs/members"
+expect 200 "listing members"
+[[ "$(jq -r '[.members[].role] | join(",")' <<<"$BODY")" == "OWNER,MEMBER" ]] ||
+  fail "unexpected members: $BODY"
+call bruno GET "/api/v1/organizations/$research"
+expect 404 "Bruno reading the organization he was not invited to"
+echo "    Bruno sees the 2 members of Ana's organization and nothing else"
+
+step "API key"
+call ana POST "/api/v1/organizations/$labs/api-keys" '{"name": "Smoke test"}'
+expect 201 "creating an API key"
+api_key=$(jq -r '.key' <<<"$BODY")
+api_key_id=$(jq -r '.apiKey.id' <<<"$BODY")
+secrets+=("$api_key")
+call ana GET "/api/v1/organizations/$labs/api-keys"
+grep -qF "$api_key" <<<"$BODY" && fail "the API key is listed after its creation"
+for url in "$API_URL" "$WEB_URL"; do
+  status_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $api_key" \
+    "$url/api/v1/system/status")
+  [[ "$status_code" == "200" ]] || fail "the API key did not work against $url ($status_code)"
+done
+call bruno POST "/api/v1/organizations/$labs/api-keys" '{"name": "Not allowed"}'
+expect 403 "a MEMBER creating an API key"
+call ana DELETE "/api/v1/organizations/$labs/api-keys/$api_key_id"
+expect 204 "revoking the API key"
+status_code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $api_key" \
+  "$API_URL/api/v1/system/status")
+[[ "$status_code" == "401" ]] || fail "the revoked API key still answered $status_code"
+echo "    created, used through the API and the web app, revoked"
+
+step "Tenant isolation"
+call carla POST /api/v1/auth/register "$(account "$carla_email" "$carla_password" "Carla" "Smoke Other $stamp")"
+expect 201 "registering Carla"
+secrets+=("$(session_token carla)")
+for path in "" /members /invitations /api-keys; do
+  call carla GET "/api/v1/organizations/$labs$path"
+  expect 404 "Carla reading /organizations/<Ana's>$path"
+done
+call carla PATCH "/api/v1/organizations/$labs" '{"name": "Taken"}'
+expect 404 "Carla renaming Ana's organization"
+call carla DELETE "/api/v1/organizations/$labs/api-keys/$api_key_id"
+expect 404 "Carla revoking Ana's API key"
+echo "    every request about Ana's organization answers 404 to Carla"
+
+step "Secrets in the logs"
+docker compose logs --no-color api web >"$workdir/logs" 2>&1
+for secret in "${secrets[@]}"; do
+  [[ -n "$secret" ]] || continue
+  if grep -qF -- "$secret" "$workdir/logs"; then
+    fail "a password, token or API key appears in the logs"
+  fi
+done
+echo "    none of the ${#secrets[@]} passwords, tokens and keys used appear in the logs"
+
 step "Event flow: API -> NATS JetStream -> worker"
-request_id="smoke-$(date +%s)-$RANDOM"
+worker_log_line() {
+  docker compose logs --no-log-prefix worker 2>/dev/null |
+    jq -cR --arg id "$1" 'fromjson? | select(.msg == "system test event received" and .event_id == $id)'
+}
+worker_logged() {
+  [[ -n "$(worker_log_line "$1")" ]]
+}
+request_id="smoke-$stamp"
 response=$(curl -fsS -X POST "$API_URL/api/v1/dev/events" \
   -H 'Content-Type: application/json' \
   -H "X-Request-Id: $request_id" \

@@ -26,6 +26,7 @@ Con Docker Compose solo se edita `.env` (a partir de [`.env.example`](../.env.ex
 | `TRUST_PROXY`                 | `false`                 | Proxies de los que se acepta `X-Forwarded-For` para conocer la IP del cliente: `true`, un número de saltos o una lista como `loopback, uniquelocal`. |
 | `SESSION_TTL_HOURS`           | `168`                   | Duración de una sesión, en horas (máximo 720).                                                                                                       |
 | `SESSION_COOKIE_SECURE`       | según `APP_ENV`         | Cookie `Secure` con prefijo `__Host-`. En producción siempre es `true`; `false` solo se acepta fuera de producción.                                  |
+| `DOCUMENT_MAX_SIZE_BYTES`     | `26214400` (25 MiB)     | Tamaño máximo de un documento. Se aplica mientras llega el archivo; un valor mayor no aumenta la memoria por subida, pero sí lo que tarda cada una.  |
 | `INVITATION_TTL_HOURS`        | `168`                   | Validez de una invitación, en horas (máximo 720).                                                                                                    |
 | `OPENAPI_ENABLED`             | según `APP_ENV`         | Sirve `/api/docs`. Activa por defecto fuera de producción y apagada en producción.                                                                   |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | vacío                   | Activa las trazas y las envía por OTLP/HTTP a esta URL (por ejemplo `http://jaeger:4318`).                                                           |

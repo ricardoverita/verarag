@@ -6,8 +6,8 @@ Fases aproximadas. El orden puede cambiar cuando aprendamos algo nuevo; lo que n
 | ---- | --------------------------------------------- | ----------- |
 | 0    | Foundation                                    | Hecha       |
 | 1    | Organizaciones, usuarios y autenticación      | Hecha       |
-| 2    | Documentos y almacenamiento                   | Siguiente   |
-| 3    | Pipeline de ingesta                           | Planificada |
+| 2    | Documentos y almacenamiento                   | Hecha       |
+| 3    | Pipeline de ingesta                           | Siguiente   |
 | 4    | Chunking y embeddings                         | Planificada |
 | 5    | Recuperación vectorial y primer RAG           | Planificada |
 | 6    | Citas y conversaciones                        | Planificada |
@@ -50,18 +50,26 @@ Quedó fuera, para fases posteriores: OIDC y SSO ([ADR 0009](adr/0009-local-cred
 
 ## Fase 2 — Documentos y almacenamiento
 
-- Subida de documentos al almacenamiento de objetos a través de la API de S3.
-- Metadatos de documentos y colecciones en PostgreSQL.
-- Límites de tamaño, tipos permitidos y checksums.
+Hecha. Detalle en [documents.md](architecture/documents.md) y en el [ADR 0012](adr/0012-streaming-uploads-and-storage-consistency.md).
 
-**Lista cuando:** se puede subir, listar, descargar y borrar un documento dentro de una colección.
+- Colecciones por organización, con nombres únicos sin distinguir mayúsculas, y borrado solo cuando están vacías.
+- Documentos con metadatos en PostgreSQL y contenido en S3, bajo claves hechas de ids.
+- Subida en streaming de punta a punta (navegador → web → API → S3), con el límite de tamaño aplicado mientras llega el archivo, SHA-256 calculado al vuelo y validación de tipo por extensión, tipo declarado y contenido.
+- Descarga en streaming, siempre como attachment, con `nosniff` y CSP sandbox.
+- Estados de almacenamiento separados de la futura ingesta, y una consistencia PostgreSQL ↔ S3 que se puede recuperar tras fallos.
+- Scopes de API key para colecciones y documentos, limitados a la organización de la key.
+- Interfaz con colecciones, subida con progreso real, detalle del documento, descarga y borrado.
+
+**Lista cuando:** se puede subir, listar, descargar y borrar un documento dentro de una colección. _Cumplido: lo comprueban los tests de integración contra PostgreSQL y MinIO reales y el smoke test contra Docker Compose._
+
+Quedó fuera: antivirus y OCR, permisos por colección o documento (fase 9), una tarea que reconcilie documentos atascados, subidas reanudables y URLs prefirmadas.
 
 ## Fase 3 — Pipeline de ingesta
 
 - Eventos `document.ingestion.*` y stream `DOCUMENTS`.
 - Patrón outbox para publicar eventos de forma consistente con la base de datos.
 - Extracción de texto de PDF, DOCX, HTML y Markdown en el worker.
-- Estado de ingesta visible en la interfaz, con reintentos y errores claros.
+- Estado de ingesta en una columna propia, separado de `storage_status`, y visible en la interfaz, con reintentos y errores claros.
 
 **Lista cuando:** un documento subido termina en estado _procesado_ o _fallido_ con un motivo comprensible, y reintentarlo no duplica nada.
 

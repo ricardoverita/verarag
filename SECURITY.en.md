@@ -59,6 +59,14 @@ Since phase 1 there are accounts, sessions, organizations, roles, invitations an
 - Sign-in, sign-up and invitations are rate limited, and an email is locked after 5 failed sign-ins.
 - Passwords, tokens and keys never reach logs, traces, metrics or the audit trail; the smoke test checks it.
 
+Since phase 2, organizations store documents. They are treated as untrusted content ([docs/architecture/documents.md](docs/architecture/documents.md), in Spanish):
+
+- The bucket is private and only the API uses it; there are no public or presigned URLs.
+- Each object's key is made of ids, never of the file name, which is only kept, cleaned, as metadata.
+- The extension picks the type, and the declared type and the content must match it. The maximum size is enforced while the file arrives.
+- Downloads are always attachments, with `nosniff` and a `sandbox` CSP that allows nothing, so uploaded HTML never runs in VeraRAG.
+- Neither document content nor S3 credentials reach logs, metrics or the audit trail.
+
 Known limitations, which do not need to be reported:
 
 - There is no email verification, password reset, MFA or SSO.
@@ -66,5 +74,8 @@ Known limitations, which do not need to be reported:
 - Without a proxy in front that overwrites `X-Forwarded-For`, a client can choose the IP the API sees through the web app, which weakens the per-IP limits. The per-email lock does not depend on the IP.
 - The web app does not send a `script-src` Content-Security-Policy yet: it needs per-request nonces, which would make every page dynamic.
 - Tenant isolation is enforced in the API, without Row Level Security in PostgreSQL ([ADR 0010](docs/adr/0010-tenant-isolation-in-the-application.md)).
+- Documents are not scanned for malware. Type detection checks signatures and structure, not that a file is harmless: a malicious PDF with the right header is accepted, and whoever downloads it should treat it as any received file.
+- Within an organization, every member sees and downloads every document. Per-collection and per-document permissions arrive in phase 9.
+- Downloads are not audited yet; they are only counted in the metrics.
 
 Docker Compose only publishes ports on `127.0.0.1`. Before exposing VeraRAG to the internet, put a TLS proxy in front that overwrites `X-Forwarded-For`, use `APP_ENV=production` and your own credentials.

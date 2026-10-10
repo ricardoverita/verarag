@@ -156,7 +156,18 @@ sequenceDiagram
 
 - Tienen la forma `vrg_<12 hex>_<43 base64url>`. El prefijo `vrg_…` es público y sirve para distinguirlas; la key completa se muestra una vez y solo se guarda su SHA-256.
 - Pertenecen a la organización, no a quien las creó, así que siguen funcionando si esa persona se va.
-- Se envían como `Authorization: Bearer <key>`, directamente a la API o a través de la web. Solo funcionan en rutas marcadas con `@ApiKeyScopes(...)`; hoy, `GET /api/v1/system/status` con el scope `system:read`. En cualquier otra ruta reciben `403 INSUFFICIENT_SCOPE`.
+- Se envían como `Authorization: Bearer <key>`, directamente a la API o a través de la web. Solo funcionan en rutas marcadas con `@ApiKeyScopes(...)`, y en cualquier otra reciben `403 INSUFFICIENT_SCOPE`. Scopes:
+
+  | Scope               | Permite                               |
+  | ------------------- | ------------------------------------- |
+  | `system:read`       | `GET /api/v1/system/status`           |
+  | `collections:read`  | Listar y leer colecciones             |
+  | `collections:write` | Crear, renombrar y borrar colecciones |
+  | `documents:read`    | Listar, leer y descargar documentos   |
+  | `documents:write`   | Subir y borrar documentos             |
+
+- Una key solo actúa en **su** organización: en las rutas de otra recibe el mismo `404` que un no miembro. Los scopes ocupan el lugar del rol, y lo que hace una key queda atribuido a ella (`created_by_api_key_id`, `actor_api_key_id` en la auditoría).
+- Las keys existentes nunca reciben scopes nuevos: cuando aparece un scope, hay que crear una key que lo pida.
 - Una key desconocida, mal formada o alterada da `401 INVALID_API_KEY`. Solo quien tiene la key real llega a saber si fue revocada (`API_KEY_REVOKED`) o venció (`API_KEY_EXPIRED`).
 - `last_used_at` se actualiza como mucho cada 5 minutos.
 
@@ -199,6 +210,8 @@ Los contadores viven en la memoria de la API ([ADR 0008](../adr/0008-sessions-in
 | `GET, POST /api/v1/organizations/:id/api-keys`               | OWNER, ADMIN              |
 | `DELETE /api/v1/organizations/:id/api-keys/:apiKeyId`        | OWNER, ADMIN              |
 | `GET /api/v1/system/status`                                  | sesión o `system:read`    |
+
+Las rutas de colecciones y documentos están en [documents.md](documents.md).
 
 Los cuerpos y las respuestas están en el documento OpenAPI ([api.md](api.md)).
 

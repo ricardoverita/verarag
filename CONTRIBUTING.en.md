@@ -112,7 +112,7 @@ go test -race ./...
 ## Tests
 
 - Every behavior change comes with tests.
-- The API has two Vitest projects. `unit` uses in-memory doubles for PostgreSQL, NATS and S3 (`apps/api/test/support`) and does not need Docker. `integration` starts PostgreSQL with pgvector through Testcontainers, applies the migrations and tests the flows over HTTP against a real database; it needs Docker. To run only the former: `pnpm --filter @verarag/api exec vitest run --project unit`.
+- The API has two Vitest projects. `unit` uses in-memory doubles for PostgreSQL, NATS and S3 (`apps/api/test/support`) and does not need Docker. `integration` starts PostgreSQL with pgvector and MinIO through Testcontainers (the same images as Docker Compose), applies the migrations and tests the flows over HTTP against a real database and real S3 storage; it needs Docker. Each test file uses its own database and its own bucket. To run only the former: `pnpm --filter @verarag/api exec vitest run --project unit`.
 - Every new resource that belongs to an organization extends the tenant isolation tests (`apps/api/test/integration/tenant-isolation.spec.ts` and the ones for each resource).
 - The worker tests its consumer against a NATS server embedded in the test itself (`internal/natstest`).
 - If you change a contract, update the schema, the example and the types in **both** languages, and run both test suites. The [contracts README](packages/contracts/README.md) lists the steps.

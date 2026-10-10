@@ -59,6 +59,14 @@ Desde la fase 1 hay cuentas, sesiones, organizaciones, roles, invitaciones y API
 - Hay límites de tasa en login, registro e invitaciones, y un bloqueo por email tras 5 logins fallidos.
 - Ni las contraseñas, ni los tokens, ni las keys aparecen en logs, trazas, métricas o auditoría; el smoke test lo comprueba.
 
+Desde la fase 2, las organizaciones guardan documentos. Se tratan como contenido no confiable ([docs/architecture/documents.md](docs/architecture/documents.md)):
+
+- El bucket es privado y solo la API lo usa; no hay URLs públicas ni prefirmadas.
+- La clave de cada objeto se forma con ids y nunca con el nombre del archivo, que solo se guarda como metadato, limpio.
+- El tipo se decide por la extensión, y el tipo declarado y el contenido deben coincidir con ella. El tamaño máximo se aplica mientras llega el archivo.
+- Las descargas van siempre como attachment, con `nosniff` y una CSP `sandbox` sin permisos, así que un HTML subido nunca se ejecuta en VeraRAG.
+- Ni el contenido de los documentos ni las credenciales de S3 aparecen en logs, métricas o auditoría.
+
 Limitaciones conocidas, que no hace falta reportar:
 
 - No hay verificación de email, recuperación de contraseña, MFA ni SSO.
@@ -66,5 +74,8 @@ Limitaciones conocidas, que no hace falta reportar:
 - Sin un proxy delante que sobrescriba `X-Forwarded-For`, un cliente puede elegir la IP que ve la API a través de la web, lo que debilita los límites por IP. El bloqueo por email no depende de la IP.
 - La web todavía no envía una política `script-src` en su Content-Security-Policy: necesita nonces por petición, que harían dinámicas todas las páginas.
 - El aislamiento entre organizaciones se aplica en la API, sin Row Level Security en PostgreSQL ([ADR 0010](docs/adr/0010-tenant-isolation-in-the-application.md)).
+- Los documentos no pasan por un antivirus. La detección de tipo comprueba firmas y estructura, no que el archivo sea inocuo: un PDF malicioso con la cabecera correcta se acepta, y quien lo descargue debe tratarlo con el mismo cuidado que cualquier archivo recibido.
+- Dentro de una organización, todo miembro ve y descarga todos los documentos. Los permisos por colección o documento llegan en la fase 9.
+- Las descargas no se auditan todavía; solo se cuentan en las métricas.
 
 Docker Compose publica los puertos solo en `127.0.0.1`. Antes de exponer VeraRAG a internet, pon delante un proxy con TLS que sobrescriba `X-Forwarded-For`, usa `APP_ENV=production` y credenciales propias.

@@ -6,7 +6,7 @@
 
 VeraRAG es una plataforma open source de conocimiento y recuperación empresarial diseñada para construir sistemas RAG seguros, explicables y observables.
 
-> **Estado:** VeraRAG está en una etapa inicial. La arquitectura base, las cuentas, las organizaciones, las invitaciones y las API keys funcionan, pero todavía no es una plataforma RAG de producción. Hoy no hay ingesta de documentos, búsqueda ni chat.
+> **Estado:** VeraRAG está en una etapa inicial. La arquitectura base, las cuentas, las organizaciones, las API keys, las colecciones y la subida de documentos funcionan, pero todavía no es una plataforma RAG de producción. Hoy los documentos se guardan, pero no se procesan: no hay ingesta, búsqueda ni chat.
 
 ## Qué es VeraRAG
 
@@ -35,20 +35,21 @@ VeraRAG intenta resolver esas cosas desde el diseño, no como parches posteriore
 
 ## Estado actual
 
-La fase 0 dejó una base ejecutable y la fase 1 añadió las organizaciones y el acceso:
+La fase 0 dejó una base ejecutable, la fase 1 añadió las organizaciones y el acceso, y la fase 2 los documentos:
 
 - **Cuentas y sesiones.** Registro y login con email y contraseña (Argon2id), sesiones en una cookie `HttpOnly` que se pueden revocar, y protección contra CSRF, _session fixation_ y fuerza bruta.
 - **Organizaciones.** Cada persona puede pertenecer a varias, con roles OWNER, ADMIN, MEMBER y VIEWER. Una organización nunca se queda sin owner, y nadie ve datos de una organización a la que no pertenece.
 - **Invitaciones** de un solo uso por enlace, y **API keys** por organización con scopes.
+- **Colecciones y documentos.** PDF, DOCX, Markdown, texto y HTML se suben en streaming hasta el almacenamiento S3, con el límite de tamaño aplicado mientras llega el archivo, SHA-256 calculado al vuelo y el tipo comprobado por extensión y contenido. Se descargan siempre como archivo, nunca se muestran en el navegador, y se borran sin perder la trazabilidad.
 - **API** en NestJS con validación y formato de errores comunes, documentación OpenAPI en desarrollo, auditoría, health, readiness, métricas, estado detallado del sistema y un endpoint de desarrollo que publica un evento de prueba.
 - **Worker** en Go que consume ese evento desde NATS JetStream, lo valida contra su contrato y lo registra en un log estructurado. Publica un heartbeat para que la API sepa que está vivo.
-- **Web** en Next.js con registro, login, dashboard, selector de organización y ajustes de organización, miembros, invitaciones y API keys.
+- **Web** en Next.js con registro, login, dashboard, selector de organización, colecciones y documentos (subida con progreso real), y ajustes de organización, miembros, invitaciones y API keys.
 - **Contratos** en JSON Schema compartidos por TypeScript y Go.
 - **PostgreSQL con pgvector**, **NATS JetStream**, **MinIO** y **Redis** en Docker Compose.
 - Logs estructurados, request ids, métricas de Prometheus y trazas distribuidas opcionales.
-- CI con lint, typecheck, tests unitarios y de integración contra PostgreSQL real, builds, imágenes de Docker y un smoke test end-to-end.
+- CI con lint, typecheck, tests unitarios y de integración contra PostgreSQL y MinIO reales, builds, imágenes de Docker y un smoke test end-to-end.
 
-Lo que **no** existe todavía: documentos, ingesta, embeddings, búsqueda, RAG, conectores, SSO, verificación de email ni recuperación de contraseña. Redis está provisionado, pero ningún servicio lo usa aún.
+Lo que **no** existe todavía: extracción de texto e ingesta, embeddings, búsqueda, RAG, conectores, antivirus, SSO, verificación de email ni recuperación de contraseña. Redis está provisionado, pero ningún servicio lo usa aún.
 
 ## Arquitectura
 
@@ -73,22 +74,22 @@ Más detalle en [docs/architecture](docs/architecture/overview.md), en [autentic
 
 ## Stack
 
-| Pieza               | Tecnología                                             |
-| ------------------- | ------------------------------------------------------ |
-| Web                 | Next.js 16, React 19, TypeScript                       |
-| API / control plane | NestJS 12, Node.js 24, TypeScript                      |
-| Worker / data plane | Go 1.27                                                |
-| Mensajería          | NATS 2.15 con JetStream                                |
-| Base de datos       | PostgreSQL 18 + pgvector 0.8.7                         |
-| Migraciones         | dbmate (SQL plano)                                     |
-| Autenticación       | Argon2id, sesiones opacas en PostgreSQL                |
-| Documentación API   | OpenAPI 3 generado desde los esquemas Zod              |
-| Almacenamiento      | API de S3; MinIO en desarrollo                         |
-| Caché (futuro)      | Redis 8                                                |
-| Contratos           | JSON Schema 2020-12                                    |
-| Observabilidad      | pino, slog, Prometheus, Grafana, OpenTelemetry, Jaeger |
-| Tests               | Vitest, Supertest, Testcontainers, `go test`           |
-| Monorepo            | pnpm workspaces + módulos de Go                        |
+| Pieza               | Tecnología                                                        |
+| ------------------- | ----------------------------------------------------------------- |
+| Web                 | Next.js 16, React 19, TypeScript                                  |
+| API / control plane | NestJS 12, Node.js 24, TypeScript                                 |
+| Worker / data plane | Go 1.27                                                           |
+| Mensajería          | NATS 2.15 con JetStream                                           |
+| Base de datos       | PostgreSQL 18 + pgvector 0.8.7                                    |
+| Migraciones         | dbmate (SQL plano)                                                |
+| Autenticación       | Argon2id, sesiones opacas en PostgreSQL                           |
+| Documentación API   | OpenAPI 3 generado desde los esquemas Zod                         |
+| Almacenamiento      | API de S3 con subidas multipart en streaming; MinIO en desarrollo |
+| Caché (futuro)      | Redis 8                                                           |
+| Contratos           | JSON Schema 2020-12                                               |
+| Observabilidad      | pino, slog, Prometheus, Grafana, OpenTelemetry, Jaeger            |
+| Tests               | Vitest, Supertest, Testcontainers, `go test`                      |
+| Monorepo            | pnpm workspaces + módulos de Go                                   |
 
 ## Quick start
 
@@ -116,11 +117,14 @@ La primera build tarda unos minutos. Cuando todo esté arriba:
 1. Abre http://localhost:3000 y pulsa **Create an account**. Se crea también tu primera organización, donde eres owner.
 2. El dashboard muestra la organización y el estado de cada componente: API, Database, Messaging, Worker y Object storage deberían aparecer como _Healthy_.
 3. En **Members**, invita a otra persona: obtienes un enlace que se muestra una sola vez. Ábrelo en otra ventana privada para crear la segunda cuenta.
-4. En **API keys**, crea una key y pruébala:
+4. En **Collections**, crea una colección y sube un documento arrastrándolo o eligiéndolo. Su página muestra el tipo, el tamaño, el SHA-256 y quién lo subió, y permite descargarlo y borrarlo.
+5. En **API keys**, crea una key y pruébala:
 
 ```bash
 curl -H "Authorization: Bearer $VERARAG_API_KEY" http://localhost:3000/api/v1/system/status
 ```
+
+Con los scopes `documents:read` o `documents:write`, la misma key lee o sube documentos ([detalle](docs/architecture/documents.md)).
 
 Si abres la web con otra dirección, por ejemplo `http://127.0.0.1:3000`, define `WEB_PUBLIC_URL` en `.env` para que los enlaces de invitación apunten a ella.
 
@@ -193,7 +197,7 @@ deployments/
   docker/         configuración de Prometheus y Grafana
 docs/
   adr/            decisiones de arquitectura
-  architecture/   visión general, API, autenticación, mensajería y observabilidad
+  architecture/   visión general, API, autenticación, documentos, mensajería y observabilidad
   configuration.md
   roadmap.md
 scripts/
@@ -207,8 +211,8 @@ compose.yaml      entorno local con Docker Compose
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 0    | **Foundation**: monorepo, Docker, API, web, worker, NATS, PostgreSQL, pgvector, Redis, MinIO, observabilidad base y CI. _Hecha._     |
 | 1    | **Organizaciones, usuarios y autenticación**: cuentas, sesiones, roles, invitaciones, API keys y aislamiento entre tenants. _Hecha._ |
-| 2    | Documentos y almacenamiento. _Siguiente._                                                                                            |
-| 3    | Pipeline de ingesta                                                                                                                  |
+| 2    | **Documentos y almacenamiento**: colecciones, subida y descarga en streaming, checksums, estados recuperables. _Hecha._              |
+| 3    | Pipeline de ingesta. _Siguiente._                                                                                                    |
 | 4    | Chunking y embeddings                                                                                                                |
 | 5    | Recuperación vectorial y primer RAG                                                                                                  |
 | 6    | Citas y conversaciones                                                                                                               |
@@ -224,7 +228,7 @@ El detalle de cada fase, con lo que la da por terminada, está en [docs/roadmap.
 ## Seguridad
 
 - Si encuentras una vulnerabilidad, **no abras un issue público**: sigue [SECURITY.md](SECURITY.md).
-- Las rutas exigen sesión o API key salvo las públicas (registro, login, invitaciones y health). Las contraseñas se guardan con Argon2id, y los tokens y keys solo como hash. El estado actual y las limitaciones conocidas están en [SECURITY.md](SECURITY.md#estado-actual).
+- Las rutas exigen sesión o API key salvo las públicas (registro, login, invitaciones y health). Los documentos subidos se tratan como contenido no confiable: el bucket es privado, las claves de objeto no contienen nombres de archivo y las descargas van siempre como attachment, con `nosniff` y CSP sandbox. Las contraseñas se guardan con Argon2id, y los tokens y keys solo como hash. El estado actual y las limitaciones conocidas están en [SECURITY.md](SECURITY.md#estado-actual).
 - Compose publica los puertos solo en `127.0.0.1`. No expongas este entorno a internet sin un proxy con TLS delante y `APP_ENV=production`.
 - Los valores de `.env.example` y la configuración de `compose.yaml` son para desarrollo local: credenciales de ejemplo, NATS sin autenticación y el endpoint de desarrollo activado.
 - `.env` está en `.gitignore`. No subas secretos reales.

@@ -57,6 +57,8 @@ services:
       DEV_ENDPOINTS_ENABLED: ${DEV_ENDPOINTS_ENABLED:-false}
       # Empty means the default: on in development, off in production.
       OPENAPI_ENABLED: ${OPENAPI_ENABLED:-}
+      # Largest document accepted, in bytes. 25 MiB by default.
+      DOCUMENT_MAX_SIZE_BYTES: ${DOCUMENT_MAX_SIZE_BYTES:-26214400}
       # Origin allowed for browser requests and base of invitation links.
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:${WEB_PORT:-3000}}
       # Browsers reach the API through the web container, on the private

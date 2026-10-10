@@ -36,6 +36,13 @@ Las cabeceras HTTP y los cuerpos no se registran, porque llevan cookies de sesi�
 | api      | `verarag_invitations_created_total`                       | counter   | —                                |
 | api      | `verarag_invitations_accepted_total`                      | counter   | `account`                        |
 | api      | `verarag_api_keys_created_total`                          | counter   | —                                |
+| api      | `verarag_collections`                                     | gauge     | —                                |
+| api      | `verarag_documents`                                       | gauge     | `status`                         |
+| api      | `verarag_document_uploads_total`                          | counter   | `result`                         |
+| api      | `verarag_document_upload_bytes_total`                     | counter   | —                                |
+| api      | `verarag_document_downloads_total`                        | counter   | `result`                         |
+| api      | `verarag_document_deletes_total`                          | counter   | `result`                         |
+| api      | `verarag_storage_operation_duration_seconds`              | histogram | `operation`, `outcome`           |
 | api      | métricas por defecto de Node.js (`process_*`, `nodejs_*`) | varios    | —                                |
 | worker   | `verarag_worker_events_processed_total`                   | counter   | `type`, `outcome`                |
 | worker   | `verarag_worker_event_processing_duration_seconds`        | histogram | `type`                           |
@@ -44,7 +51,8 @@ Las cabeceras HTTP y los cuerpos no se registran, porque llevan cookies de sesi�
 - `route` es el patrón de la ruta (`/api/v1/system/status`) y no la URL, para no crear una serie por cada id.
 - `outcome` en el worker es `processed`, `rejected` (inválido, no se reintenta) o `failed` (se reintenta).
 - `reason` de los logins fallidos es `invalid_credentials` o `too_many_attempts`; el de las API keys rechazadas, `invalid`, `revoked`, `expired` o `insufficient_scope`. `account` es `existing` o `new`.
-- Ninguna métrica lleva como etiqueta emails, ids de usuario u organización, nombres ni prefijos de keys: la cardinalidad no depende del número de clientes.
+- `status` de los documentos es `UPLOADING`, `AVAILABLE`, `FAILED` o `DELETING`. Un `UPLOADING` o `DELETING` que no baja con el tiempo señala documentos atascados que hay que revisar ([documents.md](documents.md)). Las subidas terminan `stored`, `rejected` (el archivo no era aceptable) o `failed` (falló el almacenamiento o la conexión); las descargas, `sent`, `not_available` o `storage_error`; los borrados, `deleted` o `failed`. `operation` del almacenamiento es `put`, `get`, `head` o `delete`.
+- Ninguna métrica lleva como etiqueta emails, ids de usuario, organización o documento, nombres de archivo ni prefijos de keys: la cardinalidad no depende del número de clientes.
 - Los gauges de sesiones activas y de organizaciones se calculan con una consulta a PostgreSQL en cada scrape.
 - Los subjects sin schema se agrupan con `type="unknown"`.
 
@@ -54,11 +62,13 @@ Están desactivadas por defecto. Se activan definiendo `OTEL_EXPORTER_OTLP_ENDPO
 
 Spans que se generan:
 
-| Servicio | Span                      | Tipo     |
-| -------- | ------------------------- | -------- |
-| api      | `POST /api/v1/dev/events` | server   |
-| api      | `publish system.test`     | producer |
-| worker   | `process system.test`     | consumer |
+| Servicio | Span                                       | Tipo     |
+| -------- | ------------------------------------------ | -------- |
+| api      | `POST /api/v1/dev/events`                  | server   |
+| api      | una por petición HTTP                      | server   |
+| api      | `s3 put`, `s3 get`, `s3 head`, `s3 delete` | client   |
+| api      | `publish system.test`                      | producer |
+| worker   | `process system.test`                      | consumer |
 
 La API continúa una traza si la petición trae `traceparent` y la pasa al worker en las cabeceras del mensaje de NATS. Los spans se crean explícitamente en lugar de con instrumentación automática, que no funciona de forma fiable con módulos ES. Por eso todavía no hay spans de las consultas a PostgreSQL ni de las llamadas a S3.
 

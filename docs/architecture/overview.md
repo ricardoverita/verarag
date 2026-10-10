@@ -17,19 +17,19 @@ flowchart LR
     redis[("Redis<br/>sin uso todavía")]
 ```
 
-| Componente     | Tecnología               | Hoy                                                                                                                                                                | Planificado                                                                 |
-| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `web`          | Next.js 16, React 19     | Registro, login, dashboard, ajustes de organización, miembros, invitaciones y API keys, y el estado de cada componente. Reenvía `/api/v1` a la API.                | Gestión de documentos y colecciones, chat con fuentes, administración.      |
-| `api`          | NestJS 12, Node.js 24    | Cuentas, sesiones, organizaciones, roles, invitaciones, API keys, auditoría, health, métricas, estado del sistema, OpenAPI y un endpoint de desarrollo de eventos. | Permisos por documento, documentos, conversaciones, RAG.                    |
-| `worker`       | Go 1.27                  | Consume `system.test`, publica su heartbeat, expone health y métricas.                                                                                             | Extracción, normalización, chunking, embeddings, indexación y reindexación. |
-| PostgreSQL     | PostgreSQL 18 + pgvector | Fuente de verdad: usuarios, organizaciones, membresías, sesiones, invitaciones, API keys y auditoría.                                                              | Documentos, fragmentos y vectores.                                          |
-| NATS JetStream | NATS 2.15                | Stream `SYSTEM` y bucket `worker-heartbeats`.                                                                                                                      | Stream `DOCUMENTS` con los eventos de ingesta.                              |
-| Object storage | MinIO (local), API de S3 | La API comprueba que el bucket existe.                                                                                                                             | Documentos originales.                                                      |
-| Redis          | Redis 8                  | Se levanta con Docker Compose, pero ningún servicio lo usa.                                                                                                        | Caché, rate limiting compartido, sesiones y locks.                          |
+| Componente     | Tecnología               | Hoy                                                                                                                                                                                                                                 | Planificado                                                                 |
+| -------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `web`          | Next.js 16, React 19     | Registro, login, dashboard, colecciones y documentos (subida con progreso, descarga, borrado), ajustes de organización, miembros, invitaciones y API keys, y el estado de cada componente. Reenvía `/api/v1` a la API en streaming. | Estado de ingesta, búsqueda, chat con fuentes, administración.              |
+| `api`          | NestJS 12, Node.js 24    | Cuentas, sesiones, organizaciones, roles, invitaciones, API keys, colecciones, documentos (subida y descarga en streaming), auditoría, health, métricas, estado del sistema, OpenAPI y un endpoint de desarrollo de eventos.        | Ingesta, permisos por documento, conversaciones, RAG.                       |
+| `worker`       | Go 1.27                  | Consume `system.test`, publica su heartbeat, expone health y métricas.                                                                                                                                                              | Extracción, normalización, chunking, embeddings, indexación y reindexación. |
+| PostgreSQL     | PostgreSQL 18 + pgvector | Fuente de verdad: usuarios, organizaciones, membresías, sesiones, invitaciones, API keys, colecciones, metadatos de documentos y auditoría.                                                                                         | Fragmentos y vectores.                                                      |
+| NATS JetStream | NATS 2.15                | Stream `SYSTEM` y bucket `worker-heartbeats`.                                                                                                                                                                                       | Stream `DOCUMENTS` con los eventos de ingesta.                              |
+| Object storage | MinIO (local), API de S3 | Archivos originales de los documentos, bajo claves hechas de ids. Bucket privado; solo la API lo usa.                                                                                                                               | Artefactos derivados de la ingesta.                                         |
+| Redis          | Redis 8                  | Se levanta con Docker Compose, pero ningún servicio lo usa.                                                                                                                                                                         | Caché, rate limiting compartido, sesiones y locks.                          |
 
 La web nunca habla con la base de datos ni con NATS: solo llama a la API, y lo hace desde su servidor. El navegador tampoco llama a la API: la web reenvía `/api/v1/*` desde su servidor, de modo que la cookie de sesión pertenece al origen de la web y no hace falta CORS. La API y el worker no se llaman entre sí: solo se comunican por NATS, con los contratos de [`packages/contracts`](../../packages/contracts).
 
-Cómo funcionan las cuentas, las sesiones, las organizaciones y las API keys está en [auth-and-tenancy.md](auth-and-tenancy.md). Las convenciones HTTP (versiones, validación, formato de errores y OpenAPI), en [api.md](api.md).
+Cómo funcionan las cuentas, las sesiones, las organizaciones y las API keys está en [auth-and-tenancy.md](auth-and-tenancy.md). Las colecciones, los documentos, el streaming y la consistencia con S3, en [documents.md](documents.md). Las convenciones HTTP (versiones, validación, formato de errores y OpenAPI), en [api.md](api.md).
 
 ## Flujos actuales
 
@@ -60,6 +60,29 @@ La API guarda el resultado durante 2 segundos, así que varias pestañas abierta
 
 El worker se considera sano si hay al menos una entrada en el bucket `worker-heartbeats`. Cada instancia escribe la suya cada 10 segundos mientras puede consumir eventos, las entradas caducan a los 30 segundos y el worker borra la suya al apagarse.
 
+### Subida de un documento
+
+```mermaid
+sequenceDiagram
+    participant B as Navegador
+    participant W as web (/api/v1)
+    participant A as api
+    participant P as PostgreSQL
+    participant S as MinIO / S3
+    B->>W: POST multipart (stream)
+    W->>A: mismo stream (duplex half)
+    A->>A: nombre, tipo y primeros 8 KiB
+    A->>P: fila UPLOADING
+    A->>S: multipart upload mientras llegan los bytes
+    Note over A: cuenta, corta en el límite,<br/>calcula SHA-256, valida
+    A->>S: HEAD (tamaño exacto)
+    A->>P: AVAILABLE + tamaño + SHA-256 + auditoría
+    A-->>W: 201 documento
+    W-->>B: 201 documento
+```
+
+La memoria de una subida queda acotada por las partes de 5 MiB, no por el tamaño del archivo. Detalle, límites y recuperación de fallos en [documents.md](documents.md).
+
 ### Evento de prueba
 
 ```mermaid
@@ -84,6 +107,7 @@ El endpoint solo existe con `DEV_ENDPOINTS_ENABLED=true`. Sirve para comprobar q
 ## Quién es dueño de qué
 
 - **Esquema de la base de datos:** la API. Las migraciones están en `apps/api/db/migrations` y se aplican con dbmate antes de que arranque la API.
+- **Objetos del bucket:** la API, bajo `organizations/{organizationId}/documents/{documentId}/source`. Cada objeto tiene una fila en `documents` desde antes de escribirse.
 - **Streams de NATS:** la API los crea o actualiza al arrancar. El worker espera a que existan.
 - **Consumidores durables:** cada worker define el suyo.
 - **Bucket de heartbeats:** el worker lo crea; la API solo lo lee.

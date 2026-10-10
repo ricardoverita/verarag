@@ -6,7 +6,7 @@
 
 VeraRAG is an open-source enterprise knowledge and retrieval platform built for secure, explainable and observable RAG systems.
 
-> **Status:** VeraRAG is at an early stage. The base architecture, accounts, organizations, invitations and API keys work, but it is not a production RAG platform yet. There is no document ingestion, search or chat today.
+> **Status:** VeraRAG is at an early stage. The base architecture, accounts, organizations, API keys, collections and document uploads work, but it is not a production RAG platform yet. Documents are stored today but not processed: there is no ingestion, search or chat.
 
 ## What VeraRAG is
 
@@ -35,20 +35,21 @@ VeraRAG tries to address these concerns by design, not as patches added later.
 
 ## Current status
 
-Phase 0 provided a runnable foundation and phase 1 added organizations and access:
+Phase 0 provided a runnable foundation, phase 1 added organizations and access, and phase 2 documents:
 
 - **Accounts and sessions.** Sign-up and sign-in with email and password (Argon2id), revocable sessions in an `HttpOnly` cookie, and protection against CSRF, session fixation and brute force.
 - **Organizations.** A person can belong to several, with OWNER, ADMIN, MEMBER and VIEWER roles. An organization never loses its last owner, and nobody sees data from an organization they do not belong to.
 - Single-use **invitations** by link, and organization **API keys** with scopes.
+- **Collections and documents.** PDF, DOCX, Markdown, plain text and HTML stream all the way to S3 storage, with the size limit enforced as the file arrives, SHA-256 computed on the fly and the type checked by extension and content. They are always downloaded as files, never shown in the browser, and deleted without losing traceability.
 - **API** in NestJS with common validation and error format, OpenAPI documentation in development, an audit trail, health, readiness, metrics, a detailed system status and a development endpoint that publishes a test event.
 - **Worker** in Go that consumes that event from NATS JetStream, validates it against its contract and writes a structured log line. It publishes a heartbeat so the API knows it is alive.
-- **Web app** in Next.js with sign-up, sign-in, a dashboard, an organization switcher and settings for the organization, members, invitations and API keys.
+- **Web app** in Next.js with sign-up, sign-in, a dashboard, an organization switcher, collections and documents (uploads with real progress), and settings for the organization, members, invitations and API keys.
 - **Contracts** in JSON Schema shared by TypeScript and Go.
 - **PostgreSQL with pgvector**, **NATS JetStream**, **MinIO** and **Redis** in Docker Compose.
 - Structured logs, request ids, Prometheus metrics and optional distributed tracing.
-- CI with lint, typecheck, unit tests and integration tests against a real PostgreSQL, builds, Docker images and an end-to-end smoke test.
+- CI with lint, typecheck, unit tests and integration tests against a real PostgreSQL and MinIO, builds, Docker images and an end-to-end smoke test.
 
-What does **not** exist yet: documents, ingestion, embeddings, search, RAG, connectors, SSO, email verification or password reset. Redis is provisioned, but no service uses it yet.
+What does **not** exist yet: text extraction and ingestion, embeddings, search, RAG, connectors, antivirus, SSO, email verification or password reset. Redis is provisioned, but no service uses it yet.
 
 ## Architecture
 
@@ -73,22 +74,22 @@ More detail in [docs/architecture](docs/architecture/overview.md), in [authentic
 
 ## Stack
 
-| Piece               | Technology                                             |
-| ------------------- | ------------------------------------------------------ |
-| Web                 | Next.js 16, React 19, TypeScript                       |
-| API / control plane | NestJS 12, Node.js 24, TypeScript                      |
-| Worker / data plane | Go 1.27                                                |
-| Messaging           | NATS 2.15 with JetStream                               |
-| Database            | PostgreSQL 18 + pgvector 0.8.7                         |
-| Migrations          | dbmate (plain SQL)                                     |
-| Authentication      | Argon2id, opaque sessions in PostgreSQL                |
-| API documentation   | OpenAPI 3 generated from the Zod schemas               |
-| Storage             | S3 API; MinIO in development                           |
-| Cache (future)      | Redis 8                                                |
-| Contracts           | JSON Schema 2020-12                                    |
-| Observability       | pino, slog, Prometheus, Grafana, OpenTelemetry, Jaeger |
-| Tests               | Vitest, Supertest, Testcontainers, `go test`           |
-| Monorepo            | pnpm workspaces + Go modules                           |
+| Piece               | Technology                                                    |
+| ------------------- | ------------------------------------------------------------- |
+| Web                 | Next.js 16, React 19, TypeScript                              |
+| API / control plane | NestJS 12, Node.js 24, TypeScript                             |
+| Worker / data plane | Go 1.27                                                       |
+| Messaging           | NATS 2.15 with JetStream                                      |
+| Database            | PostgreSQL 18 + pgvector 0.8.7                                |
+| Migrations          | dbmate (plain SQL)                                            |
+| Authentication      | Argon2id, opaque sessions in PostgreSQL                       |
+| API documentation   | OpenAPI 3 generated from the Zod schemas                      |
+| Storage             | S3 API with streaming multipart uploads; MinIO in development |
+| Cache (future)      | Redis 8                                                       |
+| Contracts           | JSON Schema 2020-12                                           |
+| Observability       | pino, slog, Prometheus, Grafana, OpenTelemetry, Jaeger        |
+| Tests               | Vitest, Supertest, Testcontainers, `go test`                  |
+| Monorepo            | pnpm workspaces + Go modules                                  |
 
 ## Quick start
 
@@ -116,11 +117,14 @@ The first build takes a few minutes. Once everything is up:
 1. Open http://localhost:3000 and click **Create an account**. It also creates your first organization, where you are the owner.
 2. The dashboard shows the organization and the status of each component: API, Database, Messaging, Worker and Object storage should all be _Healthy_.
 3. In **Members**, invite someone: you get a link that is shown only once. Open it in another private window to create the second account.
-4. In **API keys**, create a key and try it:
+4. In **Collections**, create a collection and upload a document by dropping or picking it. Its page shows the type, size, SHA-256 and uploader, and lets you download and delete it.
+5. In **API keys**, create a key and try it:
 
 ```bash
 curl -H "Authorization: Bearer $VERARAG_API_KEY" http://localhost:3000/api/v1/system/status
 ```
+
+With the `documents:read` or `documents:write` scopes, the same key reads or uploads documents ([details](docs/architecture/documents.md), in Spanish).
 
 If you open the web app at another address, such as `http://127.0.0.1:3000`, set `WEB_PUBLIC_URL` in `.env` so invitation links point to it.
 
@@ -193,7 +197,7 @@ deployments/
   docker/         Prometheus and Grafana configuration
 docs/
   adr/            architecture decisions
-  architecture/   overview, API, authentication, messaging and observability
+  architecture/   overview, API, authentication, documents, messaging and observability
   configuration.md
   roadmap.md
 scripts/
@@ -207,8 +211,8 @@ compose.yaml      local environment with Docker Compose
 | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 0     | **Foundation**: monorepo, Docker, API, web, worker, NATS, PostgreSQL, pgvector, Redis, MinIO, base observability and CI. _Done._ |
 | 1     | **Organizations, users and authentication**: accounts, sessions, roles, invitations, API keys and tenant isolation. _Done._      |
-| 2     | Documents and storage. _Next._                                                                                                   |
-| 3     | Ingestion pipeline                                                                                                               |
+| 2     | **Documents and storage**: collections, streaming uploads and downloads, checksums, recoverable states. _Done._                  |
+| 3     | Ingestion pipeline. _Next._                                                                                                      |
 | 4     | Chunking and embeddings                                                                                                          |
 | 5     | Vector retrieval and first RAG                                                                                                   |
 | 6     | Citations and conversations                                                                                                      |
@@ -224,7 +228,7 @@ The details of each phase, including what makes it done, are in [docs/roadmap.md
 ## Security
 
 - If you find a vulnerability, **do not open a public issue**: follow [SECURITY.en.md](SECURITY.en.md).
-- Routes require a session or an API key, except the public ones (sign-up, sign-in, invitations and health). Passwords are stored with Argon2id, and tokens and keys only as hashes. The current state and known limitations are in [SECURITY.en.md](SECURITY.en.md#current-state).
+- Routes require a session or an API key, except the public ones (sign-up, sign-in, invitations and health). Uploaded documents are treated as untrusted content: the bucket is private, object keys contain no file names, and downloads are always attachments with `nosniff` and a sandbox CSP. Passwords are stored with Argon2id, and tokens and keys only as hashes. The current state and known limitations are in [SECURITY.en.md](SECURITY.en.md#current-state).
 - Compose only publishes ports on `127.0.0.1`. Do not expose this environment to the internet without a TLS proxy in front and `APP_ENV=production`.
 - The values in `.env.example` and the `compose.yaml` setup are for local development: example credentials, NATS without authentication and the development endpoint enabled.
 - `.env` is in `.gitignore`. Do not commit real secrets.

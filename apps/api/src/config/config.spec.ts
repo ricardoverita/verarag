@@ -111,6 +111,10 @@ describe('loadConfig', () => {
     expect(config.storage.credentials).toBeUndefined();
   });
 
+  it('rejects an unknown APP_ENV instead of guessing', () => {
+    expect(() => loadConfig({ ...baseEnv, APP_ENV: 'staging' })).toThrow(ConfigError);
+  });
+
   it('lists every invalid variable', () => {
     expect(() => loadConfig({ API_PORT: 'eighty', S3_BUCKET: 'verarag-documents' })).toThrow(
       ConfigError,

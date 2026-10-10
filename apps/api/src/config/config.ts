@@ -6,8 +6,8 @@ const optional = <T extends z.ZodType>(schema: T) =>
 
 const envSchema = z.object({
   /**
-   * Anything that is not explicitly development or test is treated as
-   * production, so a missing variable never relaxes a security setting.
+   * Unset means production, so a missing variable never relaxes a security
+   * setting. Unknown values are rejected rather than guessed.
    */
   APP_ENV: z.enum(['development', 'test', 'production']).default('production'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

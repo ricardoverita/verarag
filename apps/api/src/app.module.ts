@@ -2,6 +2,8 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { AuditModule } from './audit/audit.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import type { Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
@@ -22,6 +24,8 @@ export class AppModule {
         // Redis when the API runs with several replicas.
         ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
         DatabaseModule,
+        AuditModule,
+        AuthModule,
         HealthModule,
         ...(config.devEndpointsEnabled ? [DevModule] : []),
       ],

@@ -14,6 +14,7 @@ import { AppError } from './app-error.js';
 
 const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   VALIDATION_FAILED: HttpStatus.BAD_REQUEST,
+  EMAIL_UNAVAILABLE: HttpStatus.CONFLICT,
   NOT_FOUND: HttpStatus.NOT_FOUND,
   PAYLOAD_TOO_LARGE: HttpStatus.PAYLOAD_TOO_LARGE,
   RATE_LIMITED: HttpStatus.TOO_MANY_REQUESTS,

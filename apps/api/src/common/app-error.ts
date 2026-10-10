@@ -19,6 +19,7 @@ export class AppError extends Error {
 
 const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   VALIDATION_FAILED: 'The request is not valid.',
+  EMAIL_UNAVAILABLE: 'This email cannot be used to create an account.',
   NOT_FOUND: 'The requested resource does not exist.',
   PAYLOAD_TOO_LARGE: 'The request body is too large.',
   RATE_LIMITED: 'Too many requests. Try again later.',

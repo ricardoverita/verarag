@@ -11,7 +11,7 @@ describe('loadConfig', () => {
   it('applies defaults for optional settings', () => {
     const config = loadConfig(baseEnv);
 
-    expect(config.http).toEqual({ host: '0.0.0.0', port: 3001 });
+    expect(config.http).toEqual({ host: '0.0.0.0', port: 3001, trustProxy: false });
     expect(config.logLevel).toBe('info');
     expect(config.database.poolMax).toBe(10);
     expect(config.nats.servers).toEqual(['nats://localhost:4222']);
@@ -56,6 +56,14 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...baseEnv, DEV_ENDPOINTS_ENABLED: 'maybe' })).toThrow(
       /DEV_ENDPOINTS_ENABLED/,
     );
+  });
+
+  it.each([
+    ['true', true],
+    ['2', 2],
+    ['loopback, uniquelocal', 'loopback, uniquelocal'],
+  ])('reads TRUST_PROXY=%j', (value, expected) => {
+    expect(loadConfig({ ...baseEnv, TRUST_PROXY: value }).http.trustProxy).toEqual(expected);
   });
 
   it('treats empty variables as unset', () => {

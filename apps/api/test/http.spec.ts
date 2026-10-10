@@ -3,7 +3,7 @@ import type { ApiErrorResponse, SystemStatus } from '@verarag/contracts';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createFakes, createTestApp, type Fakes, testConfig } from './support/test-app.js';
+import { createFakes, createTestApp, type Fakes } from './support/test-app.js';
 
 describe('HTTP API', () => {
   let fakes: Fakes;
@@ -11,7 +11,7 @@ describe('HTTP API', () => {
 
   beforeEach(async () => {
     fakes = createFakes();
-    app = await createTestApp(fakes);
+    app = await createTestApp({ fakes });
   });
 
   afterEach(async () => {
@@ -185,10 +185,7 @@ describe('HTTP API', () => {
     });
 
     it('does not exist when the development endpoints are disabled', async () => {
-      const prodApp = await createTestApp(createFakes(), {
-        ...testConfig,
-        devEndpointsEnabled: false,
-      });
+      const prodApp = await createTestApp({ config: { devEndpointsEnabled: false } });
       try {
         await request(prodApp.getHttpServer())
           .post('/api/v1/dev/events')

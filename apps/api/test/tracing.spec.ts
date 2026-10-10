@@ -22,7 +22,7 @@ describe('trace propagation', () => {
 
   beforeAll(async () => {
     fakes = createFakes();
-    app = await createTestApp(fakes);
+    app = await createTestApp({ fakes });
   });
 
   afterAll(async () => {

@@ -2,6 +2,7 @@ import { Global, Logger, Module, type OnApplicationShutdown } from '@nestjs/comm
 import { Pool } from 'pg';
 
 import { CONFIG, type Config } from '../config/config.js';
+import { Database } from './database.js';
 import { DatabaseHealth } from './database.health.js';
 
 @Global()
@@ -26,9 +27,10 @@ import { DatabaseHealth } from './database.health.js';
         return pool;
       },
     },
+    Database,
     DatabaseHealth,
   ],
-  exports: [Pool, DatabaseHealth],
+  exports: [Pool, Database, DatabaseHealth],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(private readonly pool: Pool) {}

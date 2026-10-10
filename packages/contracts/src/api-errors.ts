@@ -4,6 +4,7 @@
  */
 export type ApiErrorCode =
   | 'VALIDATION_FAILED'
+  | 'EMAIL_UNAVAILABLE'
   | 'NOT_FOUND'
   | 'PAYLOAD_TOO_LARGE'
   | 'RATE_LIMITED'

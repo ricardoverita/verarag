@@ -6,6 +6,12 @@ packages:
 allowBuilds:
   # Its postinstall only downloads a fallback binary when the prebuilt one is missing.
   unrs-resolver: false
+  # Pulled in by testcontainers through dockerode. The native builds only speed
+  # up SSH connections to remote Docker hosts, which the tests do not use.
+  cpu-features: false
+  ssh2: false
+  # Its postinstall only checks the installed version.
+  protobufjs: false
 
 peerDependencyRules:
   # eslint-config-next still pulls plugins that do not list ESLint 10 as a

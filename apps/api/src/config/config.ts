@@ -8,6 +8,17 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   API_HOST: z.string().min(1).default('0.0.0.0'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+  /**
+   * Express "trust proxy" setting: which proxies may set X-Forwarded-For.
+   * The client IP drives rate limiting, so only trust proxies you run.
+   */
+  TRUST_PROXY: z
+    .string()
+    .default('false')
+    .transform((value): boolean | number | string => {
+      if (value === 'true' || value === 'false') return value === 'true';
+      return /^\d+$/.test(value) ? Number(value) : value;
+    }),
 
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
@@ -32,7 +43,7 @@ export type LogLevel = z.infer<typeof envSchema>['LOG_LEVEL'];
 
 export interface Config {
   logLevel: LogLevel;
-  http: { host: string; port: number };
+  http: { host: string; port: number; trustProxy: boolean | number | string };
   database: { url: string; poolMax: number };
   storage: {
     endpoint?: string;
@@ -73,7 +84,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return {
     logLevel: vars.LOG_LEVEL,
-    http: { host: vars.API_HOST, port: vars.API_PORT },
+    http: { host: vars.API_HOST, port: vars.API_PORT, trustProxy: vars.TRUST_PROXY },
     database: { url: vars.DATABASE_URL, poolMax: vars.DATABASE_POOL_MAX },
     storage: {
       endpoint: vars.S3_ENDPOINT,

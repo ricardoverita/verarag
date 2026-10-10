@@ -11,7 +11,8 @@ import { ObjectStorage } from '../../src/storage/object-storage.js';
 
 export const testConfig: Config = {
   logLevel: 'silent',
-  http: { host: '127.0.0.1', port: 0 },
+  // Tests send X-Forwarded-For to act as different clients.
+  http: { host: '127.0.0.1', port: 0, trustProxy: true },
   database: { url: 'postgres://verarag:verarag@localhost:5432/verarag', poolMax: 1 },
   storage: { region: 'us-east-1', bucket: 'verarag-documents', forcePathStyle: true },
   nats: { servers: ['nats://localhost:4222'] },
@@ -52,20 +53,30 @@ export function createFakes() {
 
 export type Fakes = ReturnType<typeof createFakes>;
 
-export async function createTestApp(
-  fakes: Fakes = createFakes(),
-  config: Config = testConfig,
-): Promise<NestExpressApplication> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(config)] })
-    .overrideProvider(Pool)
-    .useValue(fakes.pool)
+export interface TestAppOptions {
+  fakes?: Fakes;
+  config?: Partial<Config>;
+  /** Use a real PostgreSQL database instead of the in-memory pool. */
+  databaseUrl?: string;
+}
+
+export async function createTestApp(options: TestAppOptions = {}): Promise<NestExpressApplication> {
+  const fakes = options.fakes ?? createFakes();
+  const config: Config = { ...testConfig, ...options.config };
+  if (options.databaseUrl) {
+    config.database = { url: options.databaseUrl, poolMax: 5 };
+  }
+
+  let builder = Test.createTestingModule({ imports: [AppModule.forRoot(config)] })
     .overrideProvider(ObjectStorage)
     .useValue(fakes.storage)
     .overrideProvider(NatsClient)
-    .useValue(fakes.nats)
-    .compile();
+    .useValue(fakes.nats);
+  if (!options.databaseUrl) {
+    builder = builder.overrideProvider(Pool).useValue(fakes.pool);
+  }
 
-  const app = moduleRef.createNestApplication<NestExpressApplication>();
+  const app = (await builder.compile()).createNestApplication<NestExpressApplication>();
   configureApp(app);
   await app.init();
   return app;

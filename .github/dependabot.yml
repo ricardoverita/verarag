@@ -5,6 +5,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Follows the Node.js major in .nvmrc and the Docker images (24 LTS).
+      # Moving to a new major is a deliberate change, not a routine bump.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
@@ -26,6 +31,9 @@ updates:
       - /apps/worker
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker-compose
     directory: /

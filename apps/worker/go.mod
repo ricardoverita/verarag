@@ -3,7 +3,7 @@ module github.com/ricardoverita/verarag/apps/worker
 go 1.26.0
 
 require (
-	github.com/nats-io/nats-server/v2 v2.15.0
+	github.com/nats-io/nats-server/v2 v2.15.1
 	github.com/nats-io/nats.go v1.54.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/ricardoverita/verarag/packages/contracts v0.0.0

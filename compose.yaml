@@ -150,7 +150,7 @@ services:
   # Not used by the services yet. Caching, rate limiting and locks will
   # move here when the API runs with several replicas.
   redis:
-    image: redis:8.8.3-alpine
+    image: redis:8.10.1-alpine
     restart: unless-stopped
     command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD"']
     environment:

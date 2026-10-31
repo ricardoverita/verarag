@@ -135,7 +135,7 @@ services:
 
   # Applies the SQL migrations in apps/api/db/migrations and exits.
   migrate:
-    image: ghcr.io/amacneil/dbmate:2.36.0
+    image: ghcr.io/amacneil/dbmate:2.37.0
     command: [--wait, --no-dump-schema, up]
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
